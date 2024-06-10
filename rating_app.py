@@ -11,13 +11,16 @@ from models import JSONGame
 import os
 
 
+if not os.path.exists("logs"):
+    os.makedirs("logs")
+    
 logger = logging.getLogger(__name__)
 logging.basicConfig(
     level=logging.DEBUG,
     filename="logs/app.log",
     filemode="a",
     format="%(asctime)s %(levelname)s %(message)s",
-    force=True,
+    force=
 )
 
 app = Flask(__name__)

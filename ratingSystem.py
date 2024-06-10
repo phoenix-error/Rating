@@ -22,6 +22,7 @@ from constants import (
 import logging
 from typ import json
 from dotenv import dotenv_values
+import os
 
 
 class RatingSystem:
@@ -37,6 +38,8 @@ class RatingSystem:
         Base.metadata.create_all(self.engine)
         self.Session = sessionmaker(bind=self.engine)
         self.session = self.Session()
+        if not os.path.exists("logs"):
+            os.makedirs("logs")
         self.logger = logging.getLogger(__name__)
         logging.basicConfig(
             level=logging.DEBUG,
