@@ -1,0 +1,7 @@
+pandas
+dataframe-image
+twilio
+flask
+sqlalchemy
+typjson
+python-dotenv
