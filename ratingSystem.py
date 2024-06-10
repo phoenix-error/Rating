@@ -40,9 +40,10 @@ class RatingSystem:
         self.logger = logging.getLogger(__name__)
         logging.basicConfig(
             level=logging.DEBUG,
-            filename="database.log",
-            filemode="r+",
+            filename="logs/database.log",
+            filemode="a",
             format="%(asctime)s %(levelname)s %(message)s",
+            force=True,
         )
 
     def get_names(self):

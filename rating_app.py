@@ -14,9 +14,10 @@ import os
 logger = logging.getLogger(__name__)
 logging.basicConfig(
     level=logging.DEBUG,
-    filename="app.log",
-    filemode="r+",
+    filename="logs/app.log",
+    filemode="a",
     format="%(asctime)s %(levelname)s %(message)s",
+    force=True,
 )
 
 app = Flask(__name__)
