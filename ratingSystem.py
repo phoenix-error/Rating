@@ -22,6 +22,7 @@ from constants import (
 import logging
 from typ import json
 from os import environ, path, makedirs
+import psycopg2
 
 
 class RatingSystem:
