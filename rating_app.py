@@ -9,6 +9,7 @@ from typ import json
 from typing import List
 from models import JSONGame
 import os
+from enums import Liga
 
 
 if not os.path.exists("logs"):
@@ -34,12 +35,13 @@ def hello():
 @app.route("/whatsapp", methods=["POST"])
 def whatsapp_message():
     incoming_msg = request.values.get("Body", "").strip()
+    phone_number = request.values.get("From", "").strip()
 
-    response = process_message(incoming_msg)
+    response = process_message(incoming_msg, phone_number)
     return str(response)
 
 
-def process_message(message):
+def process_message(message, phone_number):
     ratingSystem = RatingSystem()
     message = message.lower()
 
@@ -60,7 +62,16 @@ def process_message(message):
         try:
             name = message.split()[1]
             country = message.split()[2] if len(message.split()) > 2 else "deutschland"
-            ratingSystem.add_player(name, country)
+            liga = message.split()[3] if len(message.split()) > 3 else Liga.KEINE
+            # Check if liga is valid
+            if liga not in [liga.value for liga in Liga]:
+                response = MessagingResponse()
+                response.message(
+                    f"Liga konnte nicht erkannt werden. Bitte überprüfe die Eingabe.\nFormat: Spieler hinzufügen <name> <country> <liga>"
+                )
+                return response
+
+            ratingSystem.add_player(name, phone_number, country, liga)
             response = MessagingResponse()
             response.message(f"Spieler {name} wurde hinzugefügt.")
             return response

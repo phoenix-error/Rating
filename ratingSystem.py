@@ -69,13 +69,13 @@ class RatingSystem:
                 f"Name {name} konnte nicht in der Datenbank gefunden werden. Bitte überprüfe die Eingabe."
             )
 
-    def add_player(self, name: str, phone_number: str, liga: Liga):
+    def add_player(self, name: str, phone_number: str, country: str, liga: Liga):
         existing_player = self.session.query(Player).filter_by(name=name).first()
         if existing_player:
             self.logger.debug(f"Player {name} already exists in the database.")
             return existing_player
 
-        new_player = Player(name=name, country="Germany", phone_number=phone_number)
+        new_player = Player(name=name, country=country, phone_number=phone_number)
         self.session.add(new_player)
         self.session.commit()
         self.logger.info(f"Added new player {name} to the database.")
