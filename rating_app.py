@@ -61,6 +61,9 @@ def process_message(message):
             name = message.split()[1]
             country = message.split()[2] if len(message.split()) > 2 else "deutschland"
             ratingSystem.add_player(name, country)
+            response = MessagingResponse()
+            response.message(f"Spieler {name} wurde hinzugefügt.")
+            return response
         except Exception as e:
             logger.error(f"Error: {e}")
             response = MessagingResponse()
@@ -72,6 +75,9 @@ def process_message(message):
         try:
             name = message.split()[2]
             ratingSystem.delete_player(name)
+            response = MessagingResponse()
+            response.message(f"Spieler {name} wurde gelöscht.")
+            return response
         except Exception as e:
             logger.error(f"Error: {e}")
             response = MessagingResponse()
@@ -83,6 +89,9 @@ def process_message(message):
         try:
             name = message.split()[2]
             ratingSystem.add_player_to_rating(name)
+            response = MessagingResponse()
+            response.message(f"Spieler {name} wurde zur Ratingliste hinzugefügt.")
+            return response
         except Exception as e:
             logger.error(f"Error: {e}")
             response = MessagingResponse()
