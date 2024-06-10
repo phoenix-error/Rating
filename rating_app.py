@@ -60,9 +60,9 @@ def process_message(message, phone_number):
     # If message is of form Hinzufügen <name> <country> (optional) then add player
     if message.startswith("spieler hinzufügen"):
         try:
-            name = message.split()[1]
-            country = message.split()[2] if len(message.split()) > 2 else "deutschland"
-            liga = message.split()[3] if len(message.split()) > 3 else Liga.KEINE
+            name = message.split()[2]
+            country = message.split()[3] if len(message.split()) > 2 else "deutschland"
+            liga = message.split()[4] if len(message.split()) > 3 else Liga.KEINE
             # Check if liga is valid
             if liga not in [liga.value for liga in Liga]:
                 response = MessagingResponse()
