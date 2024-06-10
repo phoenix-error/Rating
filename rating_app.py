@@ -40,6 +40,64 @@ def whatsapp_message():
 
 
 def process_message(message):
+    ratingSystem = RatingSystem()
+    message = message.lower()
+
+    # Analyze message
+    # If message is of form Löschen <id> then delete game with id <id>
+    if message.startswith("löschen"):
+        try:
+            game_id = int(message.split()[1])
+            ratingSystem.delete_game(game_id)
+        except Exception as e:
+            logger.error(f"Error: {e}")
+            response = MessagingResponse()
+            response.message(f"Error: {e}")
+            return response
+
+    # If message is of form Hinzufügen <name> <country> (optional) then add player
+    if message.startswith("spieler hinzufügen"):
+        try:
+            name = message.split()[1]
+            country = message.split()[2] if len(message.split()) > 2 else "deutschland"
+            ratingSystem.add_player(name, country)
+        except Exception as e:
+            logger.error(f"Error: {e}")
+            response = MessagingResponse()
+            response.message(f"Error: {e}")
+            return response
+
+    # If message is of form Spieler löschen <name> then delete player
+    if message.startswith("spieler löschen"):
+        try:
+            name = message.split()[2]
+            ratingSystem.delete_player(name)
+        except Exception as e:
+            logger.error(f"Error: {e}")
+            response = MessagingResponse()
+            response.message(f"Error: {e}")
+            return response
+
+    # If message is of form Rating hinzufügen <name> then add player to rating
+    if message.startswith("rating hinzufügen"):
+        try:
+            name = message.split()[2]
+            ratingSystem.add_player_to_rating(name)
+        except Exception as e:
+            logger.error(f"Error: {e}")
+            response = MessagingResponse()
+            response.message(f"Error: {e}")
+            return response
+
+    # If message is of form Rating then return rating table
+    if message == "rating":
+        ratingSystem.rating_image()
+        response = MessagingResponse()
+        message = response.message("Rating Tabelle")
+        message.media("https://rating-svbi.onrender.com/RatingImage.png")
+        return response
+
+    # If message is of form Spiel <name1>: <name2> <score1>:<score2> then add game
     try:
         playerA, playerB, scores, game_type = extract_information(message)
         with open(GAMES_FILE, "r+") as file:

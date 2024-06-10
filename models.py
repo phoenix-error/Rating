@@ -30,7 +30,7 @@ class Rating(Base):
 
 class Game(Base):
     __tablename__ = "games"
-    id = Column(Integer, primary_key=True)
+    id = Column(Integer, primary_key=True, autoincrement=True)
     playerA = Column(Integer, ForeignKey("players.id"))
     playerB = Column(Integer, ForeignKey("players.id"))
     scoreA = Column(Integer, nullable=False)

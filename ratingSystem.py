@@ -21,26 +21,28 @@ from constants import (
 )
 import logging
 from typ import json
-from dotenv import dotenv_values
-import os
+from os import environ, path, makedirs
 
 
 class RatingSystem:
     def __init__(self):
-        username = dotenv_values(".env")["SUPABASE_USER"]
-        password = dotenv_values(".env")["SUPABASE_PASSWORD"]
-        host = dotenv_values(".env")["SUPABASE_HOST"]
-        port = dotenv_values(".env")["SUPABASE_PORT"]
-        dbname = dotenv_values(".env")["SUPABASE_NAME"]
+        username = environ.get["SUPABASE_USER"]
+        password = environ.get["SUPABASE_PASSWORD"]
+        host = environ.get(".env")["SUPABASE_HOST"]
+        port = environ.get(".env")["SUPABASE_PORT"]
+        dbname = environ.get(".env")["SUPABASE_NAME"]
         self.engine = create_engine(
             f"postgresql+psycopg2://{username}:{password}@{host}:{port}/{dbname}"
         )
         Base.metadata.create_all(self.engine)
         self.Session = sessionmaker(bind=self.engine)
         self.session = self.Session()
-        if not os.path.exists("logs"):
-            os.makedirs("logs")
         self.logger = logging.getLogger(__name__)
+
+        # Setup logging
+        if not path.exists("logs"):
+            makedirs("logs")
+
         logging.basicConfig(
             level=logging.DEBUG,
             filename="logs/database.log",
@@ -148,6 +150,14 @@ class RatingSystem:
         self.session.commit()
         self.logger.info(f"Added new game between {playerA_name} and {playerB_name}.")
 
+    def delete_game(self, game_id: int):
+        if not self.session.query(Game).filter_by(id=game_id).first():
+            raise RatingException(f"Game with ID {game_id} not found in the database.")
+        else:
+            self.session.query(Game).filter_by(id=game_id).delete()
+            self.session.commit()
+            self.logger.info(f"Deleted game with ID {game_id}.")
+
     def update_ratings(self, player1, player2, scores, game_type):
         for score1, score2 in scores:
             newRating1, newRating2 = self.update_rating(
@@ -233,7 +243,7 @@ class RatingSystem:
         )
 
     def process_games(self):
-        with open(GAMES_FILE, "r+") as file:
+        with open("games.json", "r+") as file:
             games: List[JSONGame] = json.load(file, List[JSONGame])
 
             for game in games:
@@ -272,5 +282,5 @@ class RatingSystem:
         data.index = range(1, len(data) + 1)
         data["Rating"] = data["Rating"].astype(int)
 
-        dfi.export(data, "./static/RatingImage.png")
+        dfi.export(data, "./RatingImage.png")
         self.logger.info("Exported the rating table as an image.")
