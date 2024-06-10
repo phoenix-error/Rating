@@ -26,11 +26,11 @@ from os import environ, path, makedirs
 
 class RatingSystem:
     def __init__(self):
-        username = environ.get["SUPABASE_USER"]
-        password = environ.get["SUPABASE_PASSWORD"]
-        host = environ.get["SUPABASE_HOST"]
-        port = environ.get["SUPABASE_PORT"]
-        dbname = environ.get["SUPABASE_NAME"]
+        username = environ["SUPABASE_USER"]
+        password = environ["SUPABASE_PASSWORD"]
+        host = environ["SUPABASE_HOST"]
+        port = environ["SUPABASE_PORT"]
+        dbname = environ["SUPABASE_NAME"]
         self.engine = create_engine(
             f"postgresql+psycopg2://{username}:{password}@{host}:{port}/{dbname}"
         )
