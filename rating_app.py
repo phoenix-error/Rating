@@ -10,6 +10,7 @@ from typing import List
 from models import JSONGame
 import os
 from enums import Liga
+from exceptions import RatingException
 
 
 if not os.path.exists("logs"):
@@ -43,114 +44,125 @@ def whatsapp_message():
 
 def process_message(message, phone_number):
     ratingSystem = RatingSystem()
-    message = message.lower()
 
     # Analyze message
     # If message is of form Löschen <id> then delete game with id <id>
-    if message.startswith("löschen"):
-        try:
-            game_id = int(message.split()[1])
-            ratingSystem.delete_game(game_id)
-        except Exception as e:
-            logger.error(f"Error: {e}")
+    if message.lower().startswith(
+        "löschen",
+    ):
+        matcher = re.match(r"löschen\s+(\d+)", message)
+        if matcher is not None:
+            ratingSystem.delete_game(int(matcher.group(1)))
+        else:
             response = MessagingResponse()
-            response.message(f"Error: {e}")
+            response.message("Fehler: Bitte gib eine gültige ID an.")
             return response
 
-    # If message is of form Spieler hinzufügen\n<name> <country> (optional) then add player
-    if message.startswith("spieler hinzufügen"):
-        try:
-            message_parts = message.splitlines()
-            name = message_parts[1]
-            country = message_parts[2] if len(message_parts) >= 3 else "deutschland"
-            liga = message_parts[3] if len(message_parts) >= 4 else Liga.KEINE
-            # Check if liga is valid
-            if liga not in [liga.value for liga in Liga]:
-                response = MessagingResponse()
-                response.message(
-                    f"Liga konnte nicht erkannt werden. Bitte überprüfe die Eingabe.\nFormat: Spieler hinzufügen <name> <country> <liga>"
-                )
-                return response
+    if message.lower().startswith("spieler hinzufügen"):
+        pattern = r"spieler hinzufügen\s*?(\w+, \w+)\s*([a-zA-Z]+)\s*([a-zA-Z]+)?"
+        match = re.search(pattern, message, re.IGNORECASE)
+        if match and match.group(1) and match.group(2):
+            name = match.group(1)
+            country = match.group(2)
+            liga = match.group(3)
+        else:
+            return create_response(
+                f"Spieler konnte nicht hinzugefügt werden.\nFormat: Spieler hinzufügen <name> <country> <liga>"
+            )
 
-            ratingSystem.add_player(name, phone_number, country, liga)
-            response = MessagingResponse()
-            response.message(f"Spieler {name} wurde hinzugefügt.")
-            return response
-        except Exception as e:
-            logger.error(f"Error: {e}")
-            response = MessagingResponse()
-            response.message(f"Error: {e}")
-            return response
+        try:
+            if not liga:
+                ratingSystem.add_player(name, phone_number, country)
+            else:
+                ratingSystem.add_player(name, phone_number, country, liga)
+            return create_response(f"Spieler {name} wurde hinzugefügt.")
+        except RatingException as e:
+            return create_response(f"Fehler: {e}")
 
     # If message is of form Spieler löschen <name> then delete player
     if message.startswith("spieler löschen"):
-        try:
-            name = message.split()[2]
-            ratingSystem.delete_player(name)
-            response = MessagingResponse()
-            response.message(f"Spieler {name} wurde gelöscht.")
-            return response
-        except Exception as e:
-            logger.error(f"Error: {e}")
-            response = MessagingResponse()
-            response.message(f"Error: {e}")
-            return response
+        pattern = r"spieler löschen\s*?(\w+, \w+)"
+        match = re.search(pattern, message, re.IGNORECASE)
+        name = match.group(0)
+
+        if match and match.group(1):
+            try:
+                ratingSystem.delete_player(match.group(1))
+            except RatingException as e:
+                return create_response(f"Fehler: {e}")
+        else:
+            return create_response(
+                f"Spieler konnte nicht gelöscht werden.\nFormat: Spieler löschen <name>"
+            )
 
     # If message is of form Rating hinzufügen <name> then add player to rating
     if message.startswith("rating hinzufügen"):
-        try:
-            name = message.split()[2]
-            ratingSystem.add_player_to_rating(name)
-            response = MessagingResponse()
-            response.message(f"Spieler {name} wurde zur Ratingliste hinzugefügt.")
-            return response
-        except Exception as e:
-            logger.error(f"Error: {e}")
-            response = MessagingResponse()
-            response.message(f"Error: {e}")
-            return response
+        pattern = r"rating hinzufügen\s*?(\w+, \w+)"
+        match = re.search(pattern, message, re.IGNORECASE)
+
+        if match and match.group(1):
+            name = match.group(1)
+            try:
+                ratingSystem.add_player_to_rating(name)
+            except RatingException as e:
+                return create_response(f"Fehler: {e}")
+        else:
+            return create_response(
+                f"Spieler konnte nicht hinzugefügt werden.\nFormat: Rating hinzufügen <name>"
+            )
 
     # If message is of form Rating then return rating table
-    if message == "rating":
+    pattern = r"\s*rating/s*"
+    if re.match(pattern, message, re.IGNORECASE):
         ratingSystem.rating_image()
         response = MessagingResponse()
         message = response.message("Rating Tabelle")
         message.media("https://rating-svbi.onrender.com/RatingImage.png")
         return response
 
-    # If message is of form Spiel <name1>: <name2> <score1>:<score2> then add game
-    try:
-        playerA, playerB, scores, game_type = extract_information(message)
-        with open(GAMES_FILE, "r+") as file:
-            games: List[JSONGame] = json.load(file, List[JSONGame])
-            for scoreA, scoreB in scores:
-                race_to = max(scoreA, scoreB)
-                game = JSONGame(playerA, playerB, scoreA, scoreB, race_to, game_type)
-                games.append(game)
-            file.seek(0)
-            json.dump(file, games)
+    # Check if message starts with a GameType
+    # get first line
+    gameType = message.splitlines()[0]
+    if gameType in [gameType.value for gameType in GameType]:
+        # If message is of form Spiel <name1>: <name2> <score1>:<score2> then add game
+        try:
+            playerA, playerB, scores, game_type = extract_information(message)
+            with open(GAMES_FILE, "r+") as file:
+                games: List[JSONGame] = json.load(file, List[JSONGame])
+                for scoreA, scoreB in scores:
+                    race_to = max(scoreA, scoreB)
+                    game = JSONGame(
+                        playerA, playerB, scoreA, scoreB, race_to, game_type
+                    )
+                    games.append(game)
+                file.seek(0)
+                json.dump(file, games)
 
-        return response_builder(playerA, playerB, scores)
-    except Exception as e:
-        logger.error(f"NameError: {e}")
-        response = MessagingResponse()
-        response.message(f"Error: {e}")
-        return response
+            score_string = "\n".join(
+                [f"{scoreA}:{scoreB}" for (scoreA, scoreB) in scores]
+            )
+            message = f"""
+        Spiel wurde hinzugefügt:
+            {playerA} vs. {playerB}
+
+        *{"Ergebnisse" if len(scores) > 1 else "Ergebnis"}:* 
+            {score_string}
+            """
+            return create_response(message)
+        except Exception as e:
+            logger.error(f"NameError: {e}")
+            response = MessagingResponse()
+            response.message(f"Error: {e}")
+            return response
+
+    return create_response(
+        "Fehler: Eingabe konnte nicht zugeordnet werden. Für mehr Informationen bitte in die Beschreibung schauen."
+    )
 
 
-def response_builder(playerA, playerB, scores):
+def create_response(message):
     response = MessagingResponse()
-
-    score_string = "\n".join([f"{scoreA}:{scoreB}" for (scoreA, scoreB) in scores])
-    message = f"""
-Spiel wurde hinzugefügt:
-    {playerA} vs. {playerB}
-
-*{"Ergebnisse" if len(scores) > 1 else "Ergebnis"}:* 
-    {score_string}
-    """
     response.message(message)
-
     return response
 
 
