@@ -12,6 +12,7 @@ class Player(Base):
     name = Column(String, nullable=False)
     phone_number = Column(String, nullable=False, unique=True)
     country = Column(String, nullable=False)
+    liga = Column(String, nullable=False)
 
     games = relationship(
         "Game", primaryjoin="or_(Player.id==Game.playerA, Player.id==Game.playerB)"
