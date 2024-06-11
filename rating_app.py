@@ -10,7 +10,6 @@ from typing import List
 from models import JSONGame
 import os
 from enums import Liga
-from exceptions import RatingException
 
 
 if not os.path.exists("logs"):
@@ -76,11 +75,11 @@ def process_message(message, phone_number):
             else:
                 ratingSystem.add_player(name, phone_number, country, liga)
             return create_response(f"Spieler {name} wurde hinzugefügt.")
-        except RatingException as e:
+        except Exception as e:
             return create_response(f"Fehler: {e}")
 
     # If message is of form Spieler löschen <name> then delete player
-    if message.startswith("spieler löschen"):
+    if message.lower().startswith("spieler löschen"):
         pattern = r"spieler löschen\s*?(\w+, \w+)"
         match = re.search(pattern, message, re.IGNORECASE)
         name = match.group(0)
@@ -88,7 +87,7 @@ def process_message(message, phone_number):
         if match and match.group(1):
             try:
                 ratingSystem.delete_player(match.group(1))
-            except RatingException as e:
+            except Exception as e:
                 return create_response(f"Fehler: {e}")
         else:
             return create_response(
@@ -104,7 +103,7 @@ def process_message(message, phone_number):
             name = match.group(1)
             try:
                 ratingSystem.add_player_to_rating(name)
-            except RatingException as e:
+            except Exception as e:
                 return create_response(f"Fehler: {e}")
         else:
             return create_response(
