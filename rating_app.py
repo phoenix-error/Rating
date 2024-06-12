@@ -99,13 +99,15 @@ class MessageProcessor:
         if message.startswith(tuple(GameType.get_values())):
             try:
                 game_type = message.split("\n")[0]
-                names = re.search(r"\b([a-zA-Z, ']+): ([a-zA-Z, ']+)\b", message)
+                names = message.split("\n")[1]
                 scores = [tuple(map(int, match)) for match in re.findall(r"\b(\d+):(\d+)\b", message)]
 
-                ids = self.ratingSystem.add_games(names.group(1), names.group(2), scores, game_type)
+                ids = self.ratingSystem.add_games(names[0].strip(), names[1].strip(), scores, game_type)
 
                 return "Spiele hinzugefügt. IDs: " + ", ".join(map(str, ids))
             except RatingException as e:
+                return f"Fehler: {e}"
+            except Exception as e:
                 return f"Fehler: {e}"
 
         return "Fehler: Eingabe konnte nicht zugeordnet werden. Für mehr Informationen bitte in die Beschreibung schauen."
