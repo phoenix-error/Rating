@@ -1,7 +1,6 @@
 from sqlalchemy import Column, Integer, String, ForeignKey, Float, Date
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
-from dataclasses import dataclass
 
 Base = declarative_base()
 
@@ -14,9 +13,7 @@ class Player(Base):
     country = Column(String, nullable=False)
     liga = Column(String, nullable=False)
 
-    games = relationship(
-        "Game", primaryjoin="or_(Player.id==Game.playerA, Player.id==Game.playerB)"
-    )
+    games = relationship("Game", primaryjoin="or_(Player.id==Game.playerA, Player.id==Game.playerB)")
 
 
 class Rating(Base):
@@ -38,14 +35,4 @@ class Game(Base):
     scoreB = Column(Integer, nullable=False)
     race_to = Column(Integer, nullable=False)
     disciplin = Column(String, nullable=False)
-
-
-@dataclass
-class JSONGame:
-    id: int
-    playerA: int
-    playerB: int
-    scoreA: int
-    scoreB: int
-    race_to: int
-    disciplin: str
+    rating_change = Column(Float, nullable=False)

@@ -4,11 +4,10 @@ from datetime import datetime
 from math import floor
 import pandas as pd
 import dataframe_image as dfi
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, func, case
 from sqlalchemy.orm import sessionmaker
 from difflib import get_close_matches
-from models import Base, Player, Rating, Game, JSONGame
-from typing import List
+from models import Base, Player, Rating, Game
 from constants import (
     date_format,
     BASIS_POINTS,
@@ -20,9 +19,9 @@ from constants import (
     MIN_RATING,
 )
 import logging
-from typ import json
 from os import environ, path, makedirs
-import psycopg2
+from sqlalchemy.exc import NoResultFound
+from supabase import create_client, Client
 
 
 class RatingSystem:
@@ -32,29 +31,25 @@ class RatingSystem:
         host = environ["SUPABASE_HOST"]
         port = environ["SUPABASE_PORT"]
         dbname = environ["SUPABASE_NAME"]
-        self.engine = create_engine(
-            f"postgresql+psycopg2://{username}:{password}@{host}:{port}/{dbname}"
-        )
+        self.engine = create_engine(f"postgresql+psycopg2://{username}:{password}@{host}:{port}/{dbname}")
         Base.metadata.create_all(self.engine)
         self.Session = sessionmaker(bind=self.engine)
         self.session = self.Session()
         self.logger = logging.getLogger(__name__)
 
-        # Setup logging
-        if not path.exists("logs"):
-            makedirs("logs")
+        url: str = environ["SUPABASE_URL"]
+        key: str = environ["SUPABASE_KEY"]
+        self.supabase: Client = create_client(url, key)
 
         logging.basicConfig(
             level=logging.DEBUG,
-            filename="logs/database.log",
-            filemode="a",
             format="%(asctime)s %(levelname)s %(message)s",
             force=True,
         )
 
     def get_names(self):
         names = self.session.query(Player.name).all()
-        self.logger.debug("Fetched all names from the database.")
+        self.logger.debug("Alle Namen aus der Datenbank abgerufen.")
         return [row[0] for row in names]
 
     def find_closest_name(self, name) -> str:
@@ -62,12 +57,8 @@ class RatingSystem:
         if matches:
             return matches[0]
         else:
-            self.logger.critical(
-                f"Name {name} konnte nicht in der Datenbank gefunden werden."
-            )
-            raise NameError(
-                f"Name {name} konnte nicht in der Datenbank gefunden werden. Bitte überprüfe die Eingabe."
-            )
+            self.logger.critical(f"Name {name} konnte nicht in der Datenbank gefunden werden.")
+            raise NameError(f"Name {name} konnte nicht in der Datenbank gefunden werden. Bitte überprüfe die Eingabe.")
 
     def add_player(
         self,
@@ -78,49 +69,69 @@ class RatingSystem:
     ) -> str:
         existing_player = self.session.query(Player).filter_by(name=name).first()
         if existing_player:
-            self.logger.debug(f"Player {name} already exists in the database.")
-            raise RatingException(f"Spieler {name} bereits in der Datenbank vorhanden.")
+            self.logger.debug(f"Spieler {name} ist bereits in der Datenbank vorhanden.")
+            raise RatingException(f"Spieler {name} ist bereits in der Datenbank vorhanden.")
 
-        new_player = Player(
-            name=name, country=country, phone_number=phone_number, liga=liga
-        )
+        new_player = Player(name=name, country=country, phone_number=phone_number, liga=liga)
         self.session.add(new_player)
         self.session.commit()
-        self.logger.info(f"Added new player {name} to the database.")
+        self.logger.info(f"Neuer Spieler {name} wurde zur Datenbank hinzugefügt.")
 
-    def add_player_to_rating(self, name: str):
-        player = self.session.query(Player).filter_by(name=name).first()
+    def delete_player(self, phone_number: str):
+        try:
+            self.logger.debug(f"Suche {phone_number} in der Datenbank.")
+            player = self.session.query(Player).filter_by(phone_number=phone_number).one()
+            id = player.id
+            self.logger.debug(f"Spieler {player.name} in der Datenbank gefunden.")
+
+            self.session.delete(player)
+            self.session.commit()
+            self.logger.info(f"Spielereintrag für {player.name} aus der Datenbank gelöscht.")
+        except NoResultFound:
+            raise RatingException(f"Du wurdest nicht in der Datenbank gefunden.\nWende dich an den Administrator.")
+
+        try:
+            rating = self.session.query(Rating).filter_by(player=id).one()
+            self.session.delete(rating)
+            self.session.commit()
+            self.logger.info(f"Rating für {player.name} aus der Datenbank gelöscht.")
+        except NoResultFound:
+            self.logger.debug(f"Rating für Spieler {player.name} nicht gefunden.")
+
+    def add_player_to_rating(self, phone_number: str):
+        player = self.session.query(Player).filter_by(phone_number=phone_number).first()
 
         if not player:
-            raise RatingException(f"Player {name} not found in the database.")
+            raise RatingException(
+                f"Du wurdest nicht in der Datenbank gefunden.\nErstelle erst einen Spieler mit deiner Nummer.\nFür Hilfe schreibe dem Administrator."
+            )
 
-        existing_rating = (
-            self.session.query(Rating).filter_by(player_id=player.id).first()
-        )
+        existing_rating = self.session.query(Rating).filter_by(player=player.id).first()
 
         if existing_rating:
-            self.logger.debug(
-                f"Rating for player {name} already exists in the database."
-            )
+            self.logger.debug(f"Spieler {player.name} bereits im Rating.")
             return
 
         new_rating = Rating(
-            player_id=player.id,
+            player=player.id,
             rating=BASIS_POINTS,
             games_won=0,
             games_lost=0,
-            last_change=datetime.now().strftime(date_format),
+            last_change=datetime.now(),
         )
 
         self.session.add(new_rating)
         self.session.commit()
-        self.logger.info(f"Added player {name} to rating.")
+        self.logger.info(f"Spieler {player.name} zum Rating hinzugefügt.")
 
-    def add_games(self, player1, player2, scores, game_type: GameType):
+    def add_games(self, playerA, playerB, scores, game_type: str) -> list[str]:
+        ids = []
         for score1, score2 in scores:
-            self.add_game(player1, player2, score1, score2, game_type)
+            id = self.add_game(playerA, playerB, score1, score2, game_type)
+            ids.append(id)
+        return ids
 
-    def add_game(self, playerA_name, playerB_name, scoreA, scoreB, game_type: GameType):
+    def add_game(self, playerA_name, playerB_name, scoreA, scoreB, game_type: str) -> str:
         """
         Adds a new game to the database.
 
@@ -129,114 +140,100 @@ class RatingSystem:
             playerB_name (str): The name of player B.
             scoreA (int): The score of player A.
             scoreB (int): The score of player B.
-            game_type (GameType): The type of the game.
+            game_type (str): The type of the game.
 
         Raises:
-            RatingException: If player A or player B is not found in the database.
+            RatingException:
 
         Returns:
-            None
+            str: The ID of the newly added game.
         """
+
+        playerA_name = self.find_closest_name(playerA_name)
+        playerB_name = self.find_closest_name(playerB_name)
 
         playerA = self.session.query(Player).filter_by(name=playerA_name).first()
         playerB = self.session.query(Player).filter_by(name=playerB_name).first()
 
-        if not playerA:
-            raise RatingException(f"Player {playerA_name} not found in the database.")
-        if not playerB:
-            raise RatingException(f"Player {playerB_name} not found in the database.")
+        if not playerA and not playerB:
+            raise RatingException(f"{playerA_name} und {playerB_name} nicht in der Datenbank gefunden.")
+        elif not playerA:
+            raise RatingException(f"{playerA_name} nicht in der Datenbank gefunden.")
+        elif not playerB:
+            raise RatingException(f"{playerB_name} nicht in der Datenbank gefunden.")
+
+        # Update ratings
+        rating_change = self._update_rating(playerA, playerB, scoreA, scoreB, game_type)
 
         new_game = Game(
-            playerA_id=playerA.id,
-            playerB_id=playerB.id,
+            playerA=playerA.id,
+            playerB=playerB.id,
             scoreA=scoreA,
             scoreB=scoreB,
-            race_to=game_type.value,
-            disciplin=game_type.name,
+            race_to=max(scoreA, scoreB),
+            disciplin=game_type,
+            rating_change=rating_change,
         )
         self.session.add(new_game)
         self.session.commit()
-        self.logger.info(f"Added new game between {playerA_name} and {playerB_name}.")
+        self.logger.info(f"Neues Spiel hinzugefügt (ID: {new_game.id}) zwischen {playerA_name} und {playerB_name}.")
+
+        return str(new_game.id)
 
     def delete_game(self, game_id: int):
         if not self.session.query(Game).filter_by(id=game_id).first():
-            raise RatingException(f"Game with ID {game_id} not found in the database.")
+            raise RatingException(f"Spiel mit ID {game_id} nicht in der Datenbank gefunden.")
         else:
             self.session.query(Game).filter_by(id=game_id).delete()
             self.session.commit()
-            self.logger.info(f"Deleted game with ID {game_id}.")
+            self.logger.info(f"Spiel mit ID {game_id} gelöscht.")
 
-    def update_ratings(self, player1, player2, scores, game_type):
-        for score1, score2 in scores:
-            newRating1, newRating2 = self.update_rating(
-                player1, player2, score1, score2, game_type
-            )
-        return newRating1, newRating2
-
-    def update_rating(
+    def _update_rating(
         self,
-        playerA_name: str,
-        playerB_name: str,
+        playerA: Player,
+        playerB: Player,
         scoreA: float,
         scoreB: float,
         game_type: GameType,
     ):
-        playerA = self.session.query(Player).filter_by(name=playerA_name).first()
-        playerB = self.session.query(Player).filter_by(name=playerB_name).first()
+        playerA_rating = self.session.query(Rating).filter_by(player=playerA.id).first()
+        playerB_rating = self.session.query(Rating).filter_by(player=playerB.id).first()
 
-        if not playerA or not playerB:
-            raise RatingException("One or both players not found in the database.")
-
-        playerA_rating = (
-            self.session.query(Rating).filter_by(player_id=playerA.id).first()
-        )
-        playerB_rating = (
-            self.session.query(Rating).filter_by(player_id=playerB.id).first()
-        )
-
-        if not playerA_rating:
-            raise RatingException(f"Player {playerA_name} not found in the rating.")
-        if not playerB_rating:
-            raise RatingException(f"Player {playerB_name} not found in the rating.")
+        if not playerA_rating and not playerB_rating:
+            raise RatingException(f"{playerA.name} und {playerB.name} nicht im Rating gefunden.")
+        elif not playerA_rating:
+            raise RatingException(f"{playerA.name} nicht im Rating gefunden.")
+        elif not playerB_rating:
+            raise RatingException(f"{playerB.name} nicht im Rating gefunden.")
 
         # Calculate the change in rating
-        calc_element = 1 / (
-            1 + pow(10, ((playerA_rating - playerB_rating) / RATING_FACTOR))
-        )
+        calc_element = 1 / (1 + pow(10, ((playerA_rating.rating - playerB_rating.rating) / RATING_FACTOR)))
 
-        if game_type == GameType.NORMAL:
+        if game_type == GameType.NORMAL.value:
             rating_change = K_FACTOR * (scoreA - calc_element * (scoreA + scoreB))
 
             self.logger.info(
-                f"Normal game: rating change is {rating_change}.\nPlayer {playerA_name} won {scoreA} games, player {playerB_name} won {scoreB} games."
+                f"Normales Spiel: Rating-Änderung beträgt {rating_change}.\nSpieler {playerA.name} hat {scoreA} Spiele gewonnen, Spieler {playerB.name} hat {scoreB} Spiele gewonnen."
             )
-        else:
-            scoreFactor1 = (
-                scoreB / 10.0
-                if scoreA > scoreB
-                else floor(scoreA / scoreB * scoreA / 10.0)
-            )
-            scoreFactor2 = (
-                floor(scoreB / scoreA * scoreB / 10.0)
-                if scoreB < scoreA
-                else scoreA / 10.0
-            )
+        elif game_type == GameType.STRAIGHT.value:
+            scoreFactor1 = scoreB / 10.0 if scoreA > scoreB else floor(scoreA / scoreB * scoreA / 10.0)
+            scoreFactor2 = floor(scoreB / scoreA * scoreB / 10.0) if scoreB < scoreA else scoreA / 10.0
 
-            rating_change = K_FACTOR * (
-                scoreFactor1 - calc_element * (scoreFactor1 + scoreFactor2)
-            )
+            rating_change = K_FACTOR * (scoreFactor1 - calc_element * (scoreFactor1 + scoreFactor2))
 
             self.logger.info(
-                f"14.1 game: rating change is {rating_change}.\nPlayer {playerA_name} won {scoreA} games, player {playerB_name} won {scoreB} games.\nThe score factors are {scoreFactor1} and {scoreFactor2}."
+                f"14.1 Spiel: Rating-Änderung beträgt {rating_change}.\nSpieler {playerA.name} hat {scoreA} Spiele gewonnen, Spieler {playerB.name} hat {scoreB} Spiele gewonnen.\nDie Score-Faktoren sind {scoreFactor1} und {scoreFactor2}."
             )
+        else:
+            raise RatingException(f"Spieltyp {game_type} wird nicht unterstützt.")
 
         # Update the ratings
         playerA_rating.rating += rating_change
         playerB_rating.rating -= rating_change
 
         # Update the last_changed date
-        playerA_rating.last_change = datetime.now().strftime(date_format)
-        playerB_rating.last_change = datetime.now().strftime(date_format)
+        playerA_rating.last_change = datetime.now()
+        playerB_rating.last_change = datetime.now()
 
         # Update the games won and lost
         playerA_rating.games_won += scoreA
@@ -245,50 +242,48 @@ class RatingSystem:
         playerB_rating.games_won += scoreB
         playerB_rating.games_lost += scoreA
 
-        self.session.commit()
-        self.logger.info(
-            f"Updated ratings for players {playerA_name} and {playerB_name}."
-        )
+        self.logger.info(f"Bewertungen für Spieler {playerA.name} und {playerB.name} aktualisiert.")
 
-    def process_games(self):
-        with open("games.json", "r+") as file:
-            games: List[JSONGame] = json.load(file, List[JSONGame])
-
-            for game in games:
-                self.update_rating(
-                    game.playerA, game.playerB, game.scoreA, game.scoreB, game.disciplin
-                )
-                self.session.add(game)
-            self.session.commit()
-            file.seek(0)
-            file.truncate()
-            json.dump([], file)
+        return rating_change
 
     def rating_image(self):
-        query = self.session.query(Rating).order_by(Rating.rating.desc()).all()
-        data = pd.DataFrame(
-            [
-                (
-                    r.player_id,
-                    r.rating,
-                    r.winning_quote,
-                    r.games_won,
-                    r.games_lost,
-                    r.last_change,
-                )
-                for r in query
-            ],
-            columns=[
-                "Player ID",
-                "Rating",
-                "Winning Quote",
-                "Games Won",
-                "Games Lost",
-                "Last Change",
-            ],
+        row_number = func.row_number().over().label("Platz")
+        rounded_rating = func.round(Rating.rating).label("Rating")
+        query = (
+            self.session.query(
+                row_number,
+                Player.name.label("Namen"),
+                rounded_rating,
+                Rating.winning_quote.label("Sieger Quote"),
+                Rating.games_won.label("Spiele (G)"),
+                Rating.games_lost.label("Spiele (V)"),
+                Rating.last_change.label("Letze Änderung"),
+            )
+            .join(Rating, Player.id == Rating.player)
+            .order_by(Player.id)
         )
-        data.index = range(1, len(data) + 1)
-        data["Rating"] = data["Rating"].astype(int)
 
-        dfi.export(data, "./RatingImage.png")
-        self.logger.info("Exported the rating table as an image.")
+        result = query.all()
+
+        data = pd.DataFrame(result)
+        dfi.export(data.style.hide(axis="index"), "./rating.png")
+
+        try:
+            storage = self.supabase.storage
+            buckets = storage.list_buckets()
+            if not buckets:
+                storage.create_bucket("rating", options={"public": True})
+                self.logger.info("Ein neuer Bucket für das Rating-Tabellenbild wurde erstellt.")
+
+            ratingBucket = storage.from_("rating")
+
+            with open("./rating.png", "rb") as f:
+                storage.empty_bucket("rating")
+                ratingBucket.upload(path="./rating.png", file=f, file_options={"content-type": "image/png"})
+
+                res = ratingBucket.get_public_url("rating.png")
+                self.logger.info("Das Rating-Tabellenbild wurde exportiert.")
+                return res
+        except Exception as e:
+            self.logger.error(f"Fehler beim Hochladen des Bildes in den Speicher: {e}")
+            return "Fehler beim Erstellen des Ratings. Bitte versuche es später erneut."

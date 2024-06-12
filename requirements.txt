@@ -3,6 +3,6 @@ dataframe-image
 twilio
 flask
 sqlalchemy
-typjson
 python-dotenv
 psycopg2
+supabase

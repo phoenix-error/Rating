@@ -13,3 +13,7 @@ class Liga(IntEnum):
 class GameType(Enum):
     NORMAL = "Normal"
     STRAIGHT = "14.1"
+
+    @staticmethod
+    def get_values():
+        return [game.value for game in GameType]
