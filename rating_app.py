@@ -4,7 +4,7 @@ from twilio.twiml.messaging_response import MessagingResponse
 from enums import GameType
 from ratingSystem import RatingSystem
 import re
-import os
+from waitress import serve
 from exceptions import RatingException
 
 logger = logging.getLogger(__name__)
@@ -51,7 +51,7 @@ class MessageProcessor:
         if message.lower().startswith(
             "löschen",
         ):
-            matcher = re.match(r"löschen\s+(\d+)\s*", message)
+            matcher = re.match(r"löschen:\b+(\d+)\s*", message)
             if matcher:
                 try:
                     self.ratingSystem.delete_game(int(matcher.group(1)))
@@ -112,4 +112,4 @@ class MessageProcessor:
 
 
 if __name__ == "__main__":
-    app.run(debug=True, port=8080, host="0.0.0.0")
+    serve(app, host="0.0.0.0", port=8080)
