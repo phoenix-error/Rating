@@ -19,7 +19,7 @@ from constants import (
     MIN_RATING,
 )
 import logging
-from os import environ, path, makedirs
+from os import environ, path
 from sqlalchemy.exc import NoResultFound
 from supabase import create_client, Client
 
@@ -116,14 +116,14 @@ class RatingSystem:
         self.session.commit()
         self.logger.info(f"Spieler {player.name} zum Rating hinzugefügt.")
 
-    def add_games(self, playerA, playerB, scores, game_type: str) -> list[str]:
+    def add_games(self, playerA, playerB, scores, game_type, phone_number) -> list[str]:
         ids = []
         for score1, score2 in scores:
-            id = self.add_game(playerA, playerB, score1, score2, game_type)
+            id = self.add_game(playerA, playerB, score1, score2, game_type, phone_number)
             ids.append(id)
         return ids
 
-    def add_game(self, playerA_name, playerB_name, scoreA, scoreB, game_type: str) -> str:
+    def add_game(self, playerA_name, playerB_name, scoreA, scoreB, game_type, phone_number) -> str:
         """
         Adds a new game to the database.
 
@@ -133,6 +133,7 @@ class RatingSystem:
             scoreA (int): The score of player A.
             scoreB (int): The score of player B.
             game_type (str): The type of the game.
+            phone_number (str): The phone number of the player adding the game.
 
         Raises:
             RatingException:
@@ -154,6 +155,10 @@ class RatingSystem:
         elif not playerB:
             raise RatingException(f"{playerB_name} nicht in der Datenbank gefunden.")
 
+        # Check if the player adding the game is one of the players
+        if playerA.phone_number != phone_number and playerB.phone_number != phone_number:
+            raise RatingException(f"Du bist nicht einer der Spieler in diesem Spiel.")
+
         # Update ratings
         rating_change = self._update_rating(playerA, playerB, scoreA, scoreB, game_type)
 
@@ -173,10 +178,18 @@ class RatingSystem:
 
         return str(new_game.id)
 
-    def delete_game(self, game_id: int):
+    def delete_game(self, game_id: int, phone_number: str):
         if not self.session.query(Game).filter_by(id=game_id).first():
             raise RatingException(f"Spiel mit ID {game_id} nicht in der Datenbank gefunden.")
         else:
+            # Check if the player deleting the game is one of the players
+            game = self.session.query(Game).filter_by(id=game_id).first()
+            playerA = self.session.query(Player).filter_by(id=game.playerA).first()
+            playerB = self.session.query(Player).filter_by(id=game.playerB).first()
+
+            if (not playerA or playerA.phone_number != phone_number) and (not playerB or playerB.phone_number != phone_number):
+                raise RatingException(f"Du bist nicht einer der Spieler in diesem Spiel.")
+
             self.session.query(Game).filter_by(id=game_id).delete()
             self.session.commit()
             self.logger.info(f"Spiel mit ID {game_id} gelöscht.")

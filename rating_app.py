@@ -1,11 +1,28 @@
 import logging
-from flask import Flask, request
+from flask import Flask, request, session
 from twilio.twiml.messaging_response import MessagingResponse
-from enums import GameType, Liga
 from ratingSystem import RatingSystem
 import re
 from waitress import serve
 from exceptions import RatingException
+import os
+from flask_session import Session
+from enum import Enum
+
+
+class UserState(Enum):
+    INITIAL = "initial"
+
+    # Player states
+    PLAYER = "player"
+    ADD_PLAYER = "add_player"
+    DELETE_PLAYER = "delete_player"
+    ADD_RATING = "add_rating"
+
+    # Game states
+    GAME = "game"
+    ADD_GAME = "add_game"
+    DELETE_GAME = "delete_game"
 
 
 logger = logging.getLogger(__name__)
@@ -15,7 +32,12 @@ logging.basicConfig(
     force=True,
 )
 
+
 app = Flask(__name__)
+
+app.config["SESSION_TYPE"] = "filesystem"
+app.config["SECRET_KEY"] = os.urandom(24)
+Session(app)
 
 
 @app.route("/")
@@ -29,8 +51,14 @@ def whatsapp_message():
     phone_number = request.values.get("From", "").strip().split(":")[-1]
     logger.debug(f"Received message: {incoming_msg} from {phone_number}")
 
+    if phone_number not in session:
+        session[phone_number] = {"messages": [], "state": UserState.INITIAL.value}
+
+    session[phone_number]["messages"].append(incoming_msg)
+    logger.debug(f"Session data: {session[phone_number]}")
+
     message_processor = MessageProcessor()
-    message = message_processor.process_message(incoming_msg, phone_number)
+    message = message_processor.handle_message(incoming_msg, phone_number, session[phone_number]["state"])
     return str(create_response(message))
 
 
@@ -44,78 +72,122 @@ class MessageProcessor:
     def __init__(self):
         self.ratingSystem = RatingSystem()
 
-    def process_message(self, message, phone_number) -> str:
-        print(message)
+    def handle_message(self, message: str, phone_number: str, current_state: str) -> str:
+        if current_state == UserState.INITIAL.value:
+            return self.handle_initial_state(message, phone_number)
+
+        elif current_state == UserState.PLAYER.value:
+            return self.handle_player(message, phone_number)
+        elif current_state == UserState.ADD_PLAYER.value:
+            return self.handle_add_player(message, phone_number)
+        elif current_state == UserState.DELETE_PLAYER.value:
+            return self.handle_delete_player(message, phone_number)
+        elif current_state == UserState.ADD_RATING.value:
+            return self.handle_add_rating(phone_number)
+
+        elif current_state == UserState.GAME.value:
+            return self.handle_game(message, phone_number)
+        elif current_state == UserState.ADD_GAME.value:
+            return self.handle_add_game(message, phone_number)
+        elif current_state == UserState.DELETE_GAME.value:
+            return self.handle_delete_game(message, phone_number)
+
+        else:
+            session.pop(phone_number, None)
+            return "Eingabe nicht erkannt."
+
+    def handle_initial_state(self, message, phone_number) -> str:
         if message.lower() == "rating":
+            session.pop(phone_number, None)
             return self.ratingSystem.rating_image()
+        elif message.lower().startswith("spieler"):
+            session[phone_number]["state"] = UserState.PLAYER.value
+            return "Bitte geben Sie ein was Sie machen möchten:\nHinzufügen, Löschen, Rating hinzufügen"
+        elif message.lower().startswith("spiel"):
+            session[phone_number]["state"] = UserState.GAME.value
+            return "Bitte geben Sie ein was Sie machen möchten:\nNeu, Löschen"
+        else:
+            session.pop(phone_number, None)
+            return "Eingabe nicht erkannt."
 
-        if message.lower().startswith(
-            "löschen",
-        ):
-            matcher = re.match(r"löschen:\b+(\d+)\s*", message)
-            if matcher:
-                try:
-                    self.ratingSystem.delete_game(int(matcher.group(1)))
-                    return "Spiel wurde gelöscht."
-                except RatingException as e:
-                    return f"Fehler: {e}"
-            return "Fehler: Bitte überprüfe die Eingabe.\nFormat: Löschen <id>"
+    def handle_rating(self):
+        return self.ratingSystem.rating_image()
 
-        if message.lower() == "spieler löschen":
-            try:
-                self.ratingSystem.delete_player(phone_number)
-                return f"Spieler wurde gelöscht."
-            except RatingException as e:
-                return f"Fehler: {e}"
-
-        if message.lower().startswith("spieler hinzufügen"):
-            pattern = r"spieler hinzufügen: ([a-zA-Z ,.'-]+)\n([a-zA-Z'-]+)\n*([a-zA-Z]+)?"
-            match = re.search(pattern, message, re.IGNORECASE)
-            try:
-                if match:
-                    name = match.group(1)
-                    country = match.group(2)
-                    liga = match.group(3)
-
-                    logger.info(f"Identified matches: {name}, {country}, {liga}")
-                else:
-                    return f"Spieler konnte nicht hinzugefügt werden.\nBitte Eingabe überprüfen\nSpieler hinzufügen: <name>\n<country>\n<liga>(optional)"
-
-                # Check if liga is valid
-                if liga not in [liga for liga in Liga.get_values()]:
-                    self.ratingSystem.add_player(name, phone_number, country)
-                else:
-                    self.ratingSystem.add_player(name, phone_number, country, liga)
-                return f"Spieler {name} wurde hinzugefügt."
-            except RatingException as e:
-                return f"Fehler: {e}"
-
-        if message.lower() == "rating hinzufügen":
+    def handle_player(self, message, phone_number):
+        if message.lower().startswith("hinzufügen"):
+            session[phone_number]["state"] = UserState.ADD_PLAYER.value
+            return "Bitte geben Sie ein was Sie machen möchten:\nName\nLand\nLiga"
+        elif message.lower().startswith("löschen"):
+            session[phone_number]["state"] = UserState.DELETE_PLAYER.value
+            return "Bitte geben Sie ein was Sie machen möchten:\nName"
+        elif message.lower().startswith("rating hinzufügen"):
             try:
                 self.ratingSystem.add_player_to_rating(phone_number)
                 return f"Du wurdest zum Rating hinzugefügt."
             except RatingException as e:
                 return f"Fehler: {e}"
+        else:
+            session.pop(phone_number, None)
+            return "Eingabe nicht erkannt."
 
-        # Message must be a game
-        if message.startswith(tuple(GameType.get_values())):
-            try:
-                game_type = message.split("\n")[0]
-                names = message.split("\n")[1]
-                nameA, nameB = names.strip().split(":")
-                scores = [tuple(map(int, match)) for match in re.findall(r"\b(\d+):(\d+)\b", message)]
+    def handle_add_player(self, name, phone_number):
+        try:
+            self.ratingSystem.add_player(name, phone_number)
+            return f"Spieler {name} wurde hinzugefügt."
+        except RatingException as e:
+            return f"Fehler: {e}"
 
-                logger.info(f"Identified matches: {game_type}, {names}, {scores}")
+    def handle_delete_player(self, name, phone_number):
+        try:
+            self.ratingSystem.delete_player(phone_number)
+            return f"Spieler {name} wurde gelöscht."
+        except RatingException as e:
+            return f"Fehler: {e}"
 
-                ids = self.ratingSystem.add_games(nameA, nameB, scores, game_type)
+    def handle_add_rating(self, phone_number):
+        try:
+            self.ratingSystem.add_player_to_rating(phone_number)
+            return f"Rating wurde hinzugefügt."
+        except RatingException as e:
+            return f"Fehler: {e}"
 
-                return "Spiele hinzugefügt. IDs: " + ", ".join(map(str, ids))
-            except RatingException as e:
-                return f"Fehler: {e}"
-            except Exception as e:
-                return f"Fehler: {e}"
+    def handle_game(self, message, phone_number):
+        if message.lower().startswith("neu"):
+            session[phone_number]["state"] = UserState.ADD_GAME.value
+            return "Bitte geben Sie ein was Sie machen möchten:\nSpieltyp\nSpieler A:Spieler B\nScoreA:ScoreB\n..."
+        elif message.lower().startswith("löschen"):
+            session[phone_number]["state"] = UserState.DELETE_GAME.value
+            return "Bitte geben Sie die ID des Spiels ein, das Sie löschen möchten."
+        else:
+            session.pop(phone_number, None)
+            return "Eingabe nicht erkannt."
 
-        return "Fehler: Eingabe konnte nicht zugeordnet werden. Für mehr Informationen bitte in die Beschreibung schauen."
+    def handle_add_game(self, message, phone_number):
+        try:
+            game_type = message.split("\n")[0]
+            names = message.split("\n")[1]
+            nameA, nameB = names.strip().split(":")
+            scores = [tuple(map(int, match)) for match in re.findall(r"\b(\d+):(\d+)\b", message)]
+
+            logger.info(f"Identified matches: {game_type}, {names}, {scores}")
+
+            ids = self.ratingSystem.add_games(nameA, nameB, scores, game_type, phone_number)
+
+            return "Spiele hinzugefügt. IDs: " + ", ".join(map(str, ids))
+        except RatingException as e:
+            return f"Fehler: {e}"
+        except Exception as e:
+            return f"Fehler: {e}"
+
+    def handle_delete_game(self, message, phone_number):
+        try:
+            id = int(message)
+            self.ratingSystem.delete_game(id, phone_number)
+            return "Spiel wurde gelöscht."
+        except RatingException as e:
+            return f"Fehler: {e}"
+        except Exception as e:
+            return f"Fehler: {e}"
 
 
 if __name__ == "__main__":
