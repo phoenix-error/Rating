@@ -102,6 +102,8 @@ class MessageProcessor:
                 names = message.split("\n")[1]
                 scores = [tuple(map(int, match)) for match in re.findall(r"\b(\d+):(\d+)\b", message)]
 
+                logger.info(f"Identified matches: {game_type}, {names}, {scores}")
+
                 ids = self.ratingSystem.add_games(names[0].strip(), names[1].strip(), scores, game_type)
 
                 return "Spiele hinzugefügt. IDs: " + ", ".join(map(str, ids))

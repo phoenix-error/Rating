@@ -53,6 +53,7 @@ class RatingSystem:
         return [row[0] for row in names]
 
     def find_closest_name(self, name) -> str:
+        self.logger.info(f"Suche nach Namen {name} in der Datenbank.")
         matches = get_close_matches(name, self.get_names(), n=1, cutoff=0.3)
         if matches:
             return matches[0]
