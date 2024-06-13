@@ -1,11 +1,12 @@
 import logging
 from flask import Flask, request
 from twilio.twiml.messaging_response import MessagingResponse
-from enums import GameType
+from enums import GameType, Liga
 from ratingSystem import RatingSystem
 import re
 from waitress import serve
 from exceptions import RatingException
+
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(
@@ -80,7 +81,8 @@ class MessageProcessor:
                 else:
                     return f"Spieler konnte nicht hinzugefügt werden.\nBitte Eingabe überprüfen\nSpieler hinzufügen: <name>\n<country>\n<liga>(optional)"
 
-                if not liga:
+                # Check if liga is valid
+                if liga not in [liga for liga in Liga.get_values()]:
                     self.ratingSystem.add_player(name, phone_number, country)
                 else:
                     self.ratingSystem.add_player(name, phone_number, country, liga)

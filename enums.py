@@ -9,6 +9,10 @@ class Liga(IntEnum):
     KREISKLASSE = 5
     KEINE = 0
 
+    @staticmethod
+    def get_values():
+        return [game.value for game in GameType]
+
 
 class GameType(Enum):
     NORMAL = "Normal"

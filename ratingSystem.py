@@ -82,7 +82,6 @@ class RatingSystem:
         try:
             self.logger.debug(f"Suche {phone_number} in der Datenbank.")
             player = self.session.query(Player).filter_by(phone_number=phone_number).one()
-            id = player.id
             self.logger.debug(f"Spieler {player.name} in der Datenbank gefunden.")
 
             self.session.delete(player)
@@ -90,14 +89,6 @@ class RatingSystem:
             self.logger.info(f"Spielereintrag für {player.name} aus der Datenbank gelöscht.")
         except NoResultFound:
             raise RatingException(f"Du wurdest nicht in der Datenbank gefunden.\nWende dich an den Administrator.")
-
-        try:
-            rating = self.session.query(Rating).filter_by(player=id).one()
-            self.session.delete(rating)
-            self.session.commit()
-            self.logger.info(f"Rating für {player.name} aus der Datenbank gelöscht.")
-        except NoResultFound:
-            self.logger.debug(f"Rating für Spieler {player.name} nicht gefunden.")
 
     def add_player_to_rating(self, phone_number: str):
         player = self.session.query(Player).filter_by(phone_number=phone_number).first()
@@ -174,6 +165,7 @@ class RatingSystem:
             race_to=max(scoreA, scoreB),
             disciplin=game_type,
             rating_change=rating_change,
+            session=self.session,
         )
         self.session.add(new_game)
         self.session.commit()
@@ -288,3 +280,12 @@ class RatingSystem:
         except Exception as e:
             self.logger.error(f"Fehler beim Hochladen des Bildes in den Speicher: {e}")
             return "Fehler beim Erstellen des Ratings. Bitte versuche es später erneut."
+
+    def custom_add(self, name, rating, quote, games_won, games_lost):
+        if not self.session.query(Player).filter_by(name=name).first():
+
+            player = Player(name=name, phone_number="0000000000", country="Deutschland", liga=Liga.KEINE)
+            self.session.add(player)
+            self.session.commit()
+
+        self.add_player_to_rating("0000000000")
