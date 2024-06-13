@@ -4,7 +4,7 @@ from datetime import datetime
 from math import floor
 import pandas as pd
 import dataframe_image as dfi
-from sqlalchemy import create_engine, func, case
+from sqlalchemy import create_engine, func
 from sqlalchemy.orm import sessionmaker
 from difflib import get_close_matches
 from models import Base, Player, Rating, Game
@@ -19,7 +19,7 @@ from constants import (
     MIN_RATING,
 )
 import logging
-from os import environ, path
+from os import environ
 from sqlalchemy.exc import NoResultFound
 from supabase import create_client, Client
 
