@@ -68,10 +68,10 @@ class RatingSystem:
         country: str = "Deutschland",
         liga: Liga = Liga.KEINE,
     ) -> str:
-        existing_player = self.session.query(Player).filter_by(name=name).first()
+        existing_player = self.session.query(Player).filter_by(phone_number=phone_number).first()
         if existing_player:
-            self.logger.debug(f"Spieler {name} ist bereits in der Datenbank vorhanden.")
-            raise RatingException(f"Spieler {name} ist bereits in der Datenbank vorhanden.")
+            self.logger.debug(f"Spieler mit nummer {phone_number} bereits in der Datenbank vorhanden.")
+            raise RatingException(f"Du bist bereits in der Datenbank vorhanden.")
 
         new_player = Player(name=name, country=country, phone_number=phone_number, liga=liga)
         self.session.add(new_player)
