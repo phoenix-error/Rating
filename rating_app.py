@@ -1,13 +1,12 @@
 import logging
 from flask import Flask, request, session
 from twilio.twiml.messaging_response import MessagingResponse
-from ratingSystem import RatingSystem
 import re
 from waitress import serve
 from exceptions import RatingException
-import os
-from flask_session import Session
+from os import urandom, environ
 from enum import Enum
+from ratingSystem import RatingSystem
 
 
 class UserState(Enum):
@@ -16,8 +15,6 @@ class UserState(Enum):
     # Player states
     PLAYER = "player"
     ADD_PLAYER = "add_player"
-    DELETE_PLAYER = "delete_player"
-    ADD_RATING = "add_rating"
 
     # Game states
     GAME = "game"
@@ -35,14 +32,29 @@ logging.basicConfig(
 
 app = Flask(__name__)
 
-app.config["SESSION_TYPE"] = "filesystem"
-app.config["SECRET_KEY"] = os.urandom(24)
-Session(app)
+app.secret_key = urandom(24)
 
 
 @app.route("/")
 def test():
-    return "Test"
+    return "<pre>Nothing to see here. Checkout README.md to start.</pre>"
+
+
+@app.get("/whatsapp")
+def verify_webhook():
+    mode = request.args.get("hub.mode")
+    token = request.args.get("hub.verify_token")
+    challenge = request.args.get("hub.challenge")
+
+    # Check if a token and mode are in the query string
+    if mode and token:
+        # Check the mode and token sent are correct
+        if mode == "subscribe" and token == environ["WHATSAPP_WEBHOOK_TOKEN"]:
+            # Respond with the challenge token from the request
+            return challenge, 200
+        else:
+            # Respond with '403 Forbidden' if verify tokens do not match
+            return "Forbidden", 403
 
 
 @app.post("/whatsapp")
@@ -55,11 +67,12 @@ def whatsapp_message():
         session[phone_number] = {"messages": [], "state": UserState.INITIAL.value}
 
     session[phone_number]["messages"].append(incoming_msg)
-    logger.debug(f"Session data: {session[phone_number]}")
+    logger.debug(f"Session data: {session.get(phone_number, None)}")
 
     message_processor = MessageProcessor()
     message = message_processor.handle_message(incoming_msg, phone_number, session[phone_number]["state"])
-    logger.debug(f"Session data after handle: {session[phone_number]}")
+
+    logger.debug(f"Session data: {session.get(phone_number, None)}")
     return str(create_response(message))
 
 
@@ -81,10 +94,6 @@ class MessageProcessor:
             return self.handle_player(message, phone_number)
         elif current_state == UserState.ADD_PLAYER.value:
             return self.handle_add_player(message, phone_number)
-        elif current_state == UserState.DELETE_PLAYER.value:
-            return self.handle_delete_player(message, phone_number)
-        elif current_state == UserState.ADD_RATING.value:
-            return self.handle_add_rating(phone_number)
 
         elif current_state == UserState.GAME.value:
             return self.handle_game(message, phone_number)
@@ -117,10 +126,15 @@ class MessageProcessor:
     def handle_player(self, message, phone_number):
         if message.lower().startswith("hinzufügen"):
             session[phone_number]["state"] = UserState.ADD_PLAYER.value
-            return "Bitte geben Sie ein was Sie machen möchten:\nName\nLand\nLiga"
+            return "Bitte gib deinen Namen ein."
         elif message.lower().startswith("löschen"):
-            session[phone_number]["state"] = UserState.DELETE_PLAYER.value
-            return "Bitte geben Sie ein was Sie machen möchten:\nName"
+            session.pop(phone_number, None)
+            try:
+                name = self.ratingSystem.delete_player(phone_number)
+                return f"Spieler {name} erfolgreich gelöscht."
+            except RatingException as e:
+                return f"Fehler: {e}"
+
         elif message.lower().startswith("rating hinzufügen"):
             try:
                 self.ratingSystem.add_player_to_rating(phone_number)
@@ -135,13 +149,6 @@ class MessageProcessor:
         try:
             self.ratingSystem.add_player(name, phone_number)
             return f"Spieler {name} wurde hinzugefügt."
-        except RatingException as e:
-            return f"Fehler: {e}"
-
-    def handle_delete_player(self, name, phone_number):
-        try:
-            self.ratingSystem.delete_player(phone_number)
-            return f"Spieler {name} wurde gelöscht."
         except RatingException as e:
             return f"Fehler: {e}"
 
