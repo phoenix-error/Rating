@@ -39,7 +39,6 @@ app.secret_key = urandom(24)
 headers_template = Template('{"Authorization": "Bearer ${token}", "Content-Type": "application/json"}')
 headers = headers_template.substitute(token=environ["WHATSAPP_TOKEN"])
 
-phone
 URL = "https://graph.facebook.com/v19.0/325890010616383/messages"
 
 
