@@ -1,304 +1,202 @@
-from enums import Liga, GameType
-from exceptions import RatingException
-from datetime import datetime
-from math import floor
-import pandas as pd
-import dataframe_image as dfi
-from sqlalchemy import create_engine, func
-from sqlalchemy.orm import sessionmaker
-from difflib import get_close_matches
-from models import Base, Player, Rating, Game
-from constants import (
-    date_format,
-    BASIS_POINTS,
-    RATING_MULTIPLIER,
-    RATING_FACTOR,
-    K_FACTOR,
-    WIN_POINTS,
-    MAX_RATING,
-    MIN_RATING,
-)
 import logging
-from os import environ
-from sqlalchemy.exc import NoResultFound
-from supabase import create_client, Client
+from flask import Flask, request, session
+from twilio.twiml.messaging_response import MessagingResponse
+from ratingSystem import RatingSystem
+import re
+from waitress import serve
+from exceptions import RatingException
+from os import urandom, environ
+from enum import Enum
 
 
-class RatingSystem:
+class UserState(Enum):
+    INITIAL = "initial"
+
+    # Player states
+    PLAYER = "player"
+    ADD_PLAYER = "add_player"
+
+    # Game states
+    GAME = "game"
+    ADD_GAME = "add_game"
+    DELETE_GAME = "delete_game"
+
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(
+    level=logging.DEBUG,
+    format="%(asctime)s %(levelname)s %(message)s",
+    force=True,
+)
+
+
+app = Flask(__name__)
+
+app.secret_key = urandom(24)
+
+
+@app.route("/")
+def test():
+    return "<pre>Nothing to see here. Checkout README.md to start.</pre>"
+
+
+@app.get("/whatsapp")
+def verify_webhook():
+    mode = request.args.get("hub.mode")
+    token = request.args.get("hub.verify_token")
+    challenge = request.args.get("hub.challenge")
+
+    # Check if a token and mode are in the query string
+    if mode and token:
+        # Check the mode and token sent are correct
+        if mode == "subscribe" and token == environ["WHATSAPP_WEBHOOK_TOKEN"]:
+            # Respond with the challenge token from the request
+            return challenge, 200
+        else:
+            # Respond with '403 Forbidden' if verify tokens do not match
+            return "Forbidden", 403
+
+
+@app.post("/whatsapp")
+def whatsapp_message():
+    incoming_msg = request.values.get("Body", "").strip()
+    phone_number = request.values.get("From", "").strip().split(":")[-1]
+    logger.debug(f"Received message: {incoming_msg} from {phone_number}")
+
+    if phone_number not in session:
+        session[phone_number] = {"messages": [], "state": UserState.INITIAL.value}
+
+    session[phone_number]["messages"].append(incoming_msg)
+    logger.debug(f"Session data: {session.get(phone_number, None)}")
+
+    message_processor = MessageProcessor()
+    message = message_processor.handle_message(incoming_msg, phone_number, session[phone_number]["state"])
+
+    logger.debug(f"Session data: {session.get(phone_number, None)}")
+    return str(create_response(message))
+
+
+def create_response(message):
+    response = MessagingResponse()
+    response.message(message)
+    return response
+
+
+class MessageProcessor:
     def __init__(self):
-        username = environ["SUPABASE_USER"]
-        password = environ["SUPABASE_PASSWORD"]
-        host = environ["SUPABASE_HOST"]
-        port = environ["SUPABASE_PORT"]
-        dbname = environ["SUPABASE_NAME"]
-        self.engine = create_engine(f"postgresql+psycopg2://{username}:{password}@{host}:{port}/{dbname}")
-        Base.metadata.create_all(self.engine)
-        self.Session = sessionmaker(bind=self.engine)
-        self.session = self.Session()
-        self.logger = logging.getLogger(__name__)
+        self.ratingSystem = RatingSystem()
 
-        url: str = environ["SUPABASE_URL"]
-        key: str = environ["SUPABASE_KEY"]
-        self.supabase: Client = create_client(url, key)
+    def handle_message(self, message: str, phone_number: str, current_state: str) -> str:
+        if current_state == UserState.INITIAL.value:
+            return self.handle_initial_state(message, phone_number)
 
-        logging.basicConfig(
-            level=logging.DEBUG,
-            format="%(asctime)s %(levelname)s %(message)s",
-            force=True,
-        )
+        elif current_state == UserState.PLAYER.value:
+            return self.handle_player(message, phone_number)
+        elif current_state == UserState.ADD_PLAYER.value:
+            return self.handle_add_player(message, phone_number)
 
-    def get_names(self):
-        names = self.session.query(Player.name).all()
-        self.logger.debug("Alle Namen aus der Datenbank abgerufen.")
-        return [row[0] for row in names]
+        elif current_state == UserState.GAME.value:
+            return self.handle_game(message, phone_number)
+        elif current_state == UserState.ADD_GAME.value:
+            return self.handle_add_game(message, phone_number)
+        elif current_state == UserState.DELETE_GAME.value:
+            return self.handle_delete_game(message, phone_number)
 
-    def find_closest_name(self, name) -> str:
-        self.logger.info(f"Suche nach Namen {name} in der Datenbank.")
-        matches = get_close_matches(name, self.get_names(), n=1, cutoff=0.3)
-        if matches:
-            return matches[0]
         else:
-            self.logger.critical(f"Name {name} konnte nicht in der Datenbank gefunden werden.")
-            raise NameError(f"Name {name} konnte nicht in der Datenbank gefunden werden. Bitte überprüfe die Eingabe.")
+            session.pop(phone_number, None)
+            return "Eingabe nicht erkannt."
 
-    def add_player(
-        self,
-        name: str,
-        phone_number: str,
-        country: str = "Deutschland",
-        liga: Liga = Liga.KEINE,
-    ) -> str:
-        existing_player = self.session.query(Player).filter_by(phone_number=phone_number).first()
-        if existing_player:
-            self.logger.debug(f"Spieler mit nummer {phone_number} bereits in der Datenbank vorhanden.")
-            raise RatingException(f"Du bist bereits in der Datenbank vorhanden.")
+    def handle_initial_state(self, message, phone_number) -> str:
+        if message.lower() == "rating":
+            session.pop(phone_number, None)
+            return self.ratingSystem.rating_image()
+        elif message.lower().startswith("spieler"):
+            session[phone_number]["state"] = UserState.PLAYER.value
+            return "Bitte geben Sie ein was Sie machen möchten:\nHinzufügen, Löschen, Rating hinzufügen"
+        elif message.lower().startswith("spiel"):
+            session[phone_number]["state"] = UserState.GAME.value
+            return "Bitte geben Sie ein was Sie machen möchten:\nNeu, Löschen"
+        else:
+            session.pop(phone_number, None)
+            return "Eingabe nicht erkannt."
 
-        new_player = Player(name=name, country=country, phone_number=phone_number, liga=liga)
-        self.session.add(new_player)
-        self.session.commit()
-        self.logger.info(f"Neuer Spieler {name} wurde zur Datenbank hinzugefügt.")
+    def handle_rating(self):
+        return self.ratingSystem.rating_image()
 
-    def delete_player(self, phone_number: str):
+    def handle_player(self, message, phone_number):
+        if message.lower().startswith("hinzufügen"):
+            session[phone_number]["state"] = UserState.ADD_PLAYER.value
+            return "Bitte gib deinen Namen ein."
+        elif message.lower().startswith("löschen"):
+            session.pop(phone_number, None)
+            try:
+                name = self.ratingSystem.delete_player(phone_number)
+                return f"Spieler {name} erfolgreich gelöscht."
+            except RatingException as e:
+                return f"Fehler: {e}"
+
+        elif message.lower().startswith("rating hinzufügen"):
+            try:
+                self.ratingSystem.add_player_to_rating(phone_number)
+                return f"Du wurdest zum Rating hinzugefügt."
+            except RatingException as e:
+                return f"Fehler: {e}"
+        else:
+            session.pop(phone_number, None)
+            return "Eingabe nicht erkannt."
+
+    def handle_add_player(self, name, phone_number):
         try:
-            self.logger.debug(f"Suche {phone_number} in der Datenbank.")
-            player = self.session.query(Player).filter_by(phone_number=phone_number).one()
-            self.logger.debug(f"Spieler {player.name} in der Datenbank gefunden.")
+            self.ratingSystem.add_player(name, phone_number)
+            return f"Spieler {name} wurde hinzugefügt."
+        except RatingException as e:
+            return f"Fehler: {e}"
 
-            self.session.delete(player)
-            self.session.commit()
-            self.logger.info(f"Spielereintrag für {player.name} aus der Datenbank gelöscht.")
-        except NoResultFound:
-            raise RatingException(f"Du wurdest nicht in der Datenbank gefunden.\nWende dich an den Administrator.")
-
-    def add_player_to_rating(self, phone_number: str):
-        player = self.session.query(Player).filter_by(phone_number=phone_number).first()
-
-        if not player:
-            raise RatingException(
-                f"Du wurdest nicht in der Datenbank gefunden.\nErstelle erst einen Spieler mit deiner Nummer.\nFür Hilfe schreibe dem Administrator."
-            )
-
-        existing_rating = self.session.query(Rating).filter_by(player=player.id).first()
-
-        if existing_rating:
-            self.logger.debug(f"Spieler {player.name} bereits im Rating.")
-            return
-
-        new_rating = Rating(
-            player=player.id,
-            rating=BASIS_POINTS,
-            games_won=0,
-            games_lost=0,
-            last_change=datetime.now(),
-        )
-
-        self.session.add(new_rating)
-        self.session.commit()
-        self.logger.info(f"Spieler {player.name} zum Rating hinzugefügt.")
-
-    def add_games(self, playerA, playerB, scores, game_type, phone_number) -> list[str]:
-        ids = []
-        for score1, score2 in scores:
-            id = self.add_game(playerA, playerB, score1, score2, game_type, phone_number)
-            ids.append(id)
-        return ids
-
-    def add_game(self, playerA_name, playerB_name, scoreA, scoreB, game_type, phone_number) -> str:
-        """
-        Adds a new game to the database.
-
-        Args:
-            playerA_name (str): The name of player A.
-            playerB_name (str): The name of player B.
-            scoreA (int): The score of player A.
-            scoreB (int): The score of player B.
-            game_type (str): The type of the game.
-            phone_number (str): The phone number of the player adding the game.
-
-        Raises:
-            RatingException:
-
-        Returns:
-            str: The ID of the newly added game.
-        """
-
-        playerA_name = self.find_closest_name(playerA_name)
-        playerB_name = self.find_closest_name(playerB_name)
-
-        playerA = self.session.query(Player).filter_by(name=playerA_name).first()
-        playerB = self.session.query(Player).filter_by(name=playerB_name).first()
-
-        if not playerA and not playerB:
-            raise RatingException(f"{playerA_name} und {playerB_name} nicht in der Datenbank gefunden.")
-        elif not playerA:
-            raise RatingException(f"{playerA_name} nicht in der Datenbank gefunden.")
-        elif not playerB:
-            raise RatingException(f"{playerB_name} nicht in der Datenbank gefunden.")
-
-        # Check if the player adding the game is one of the players
-        if playerA.phone_number != phone_number and playerB.phone_number != phone_number:
-            raise RatingException(f"Du bist nicht einer der Spieler in diesem Spiel.")
-
-        # Update ratings
-        rating_change = self._update_rating(playerA, playerB, scoreA, scoreB, game_type)
-
-        new_game = Game(
-            playerA=playerA.id,
-            playerB=playerB.id,
-            scoreA=scoreA,
-            scoreB=scoreB,
-            race_to=max(scoreA, scoreB),
-            disciplin=game_type,
-            rating_change=rating_change,
-            session=self.session,
-        )
-        self.session.add(new_game)
-        self.session.commit()
-        self.logger.info(f"Neues Spiel hinzugefügt (ID: {new_game.id}) zwischen {playerA_name} und {playerB_name}.")
-
-        return str(new_game.id)
-
-    def delete_game(self, game_id: int, phone_number: str):
-        if not self.session.query(Game).filter_by(id=game_id).first():
-            raise RatingException(f"Spiel mit ID {game_id} nicht in der Datenbank gefunden.")
-        else:
-            # Check if the player deleting the game is one of the players
-            game = self.session.query(Game).filter_by(id=game_id).first()
-            playerA = self.session.query(Player).filter_by(id=game.playerA).first()
-            playerB = self.session.query(Player).filter_by(id=game.playerB).first()
-
-            if (not playerA or playerA.phone_number != phone_number) and (not playerB or playerB.phone_number != phone_number):
-                raise RatingException(f"Du bist nicht einer der Spieler in diesem Spiel.")
-
-            self.session.query(Game).filter_by(id=game_id).delete()
-            self.session.commit()
-            self.logger.info(f"Spiel mit ID {game_id} gelöscht.")
-
-    def _update_rating(
-        self,
-        playerA: Player,
-        playerB: Player,
-        scoreA: float,
-        scoreB: float,
-        game_type: GameType,
-    ):
-        playerA_rating = self.session.query(Rating).filter_by(player=playerA.id).first()
-        playerB_rating = self.session.query(Rating).filter_by(player=playerB.id).first()
-
-        if not playerA_rating and not playerB_rating:
-            raise RatingException(f"{playerA.name} und {playerB.name} nicht im Rating gefunden.")
-        elif not playerA_rating:
-            raise RatingException(f"{playerA.name} nicht im Rating gefunden.")
-        elif not playerB_rating:
-            raise RatingException(f"{playerB.name} nicht im Rating gefunden.")
-
-        # Calculate the change in rating
-        calc_element = 1 / (1 + pow(10, ((playerA_rating.rating - playerB_rating.rating) / RATING_FACTOR)))
-
-        if game_type == GameType.NORMAL.value:
-            rating_change = K_FACTOR * (scoreA - calc_element * (scoreA + scoreB))
-
-            self.logger.info(
-                f"Normales Spiel: Rating-Änderung beträgt {rating_change}.\nSpieler {playerA.name} hat {scoreA} Spiele gewonnen, Spieler {playerB.name} hat {scoreB} Spiele gewonnen."
-            )
-        elif game_type == GameType.STRAIGHT.value:
-            scoreFactor1 = scoreB / 10.0 if scoreA > scoreB else floor(scoreA / scoreB * scoreA / 10.0)
-            scoreFactor2 = floor(scoreB / scoreA * scoreB / 10.0) if scoreB < scoreA else scoreA / 10.0
-
-            rating_change = K_FACTOR * (scoreFactor1 - calc_element * (scoreFactor1 + scoreFactor2))
-
-            self.logger.info(
-                f"14.1 Spiel: Rating-Änderung beträgt {rating_change}.\nSpieler {playerA.name} hat {scoreA} Spiele gewonnen, Spieler {playerB.name} hat {scoreB} Spiele gewonnen.\nDie Score-Faktoren sind {scoreFactor1} und {scoreFactor2}."
-            )
-        else:
-            raise RatingException(f"Spieltyp {game_type} wird nicht unterstützt.")
-
-        # Update the ratings
-        playerA_rating.rating += rating_change
-        playerB_rating.rating -= rating_change
-
-        # Update the last_changed date
-        playerA_rating.last_change = datetime.now()
-        playerB_rating.last_change = datetime.now()
-
-        # Update the games won and lost
-        playerA_rating.games_won += scoreA
-        playerA_rating.games_lost += scoreB
-
-        playerB_rating.games_won += scoreB
-        playerB_rating.games_lost += scoreA
-
-        self.logger.info(f"Bewertungen für Spieler {playerA.name} und {playerB.name} aktualisiert.")
-
-        return rating_change
-
-    def rating_image(self):
-        row_number = func.row_number().over().label("Platz")
-        rounded_rating = func.round(Rating.rating).label("Rating")
-        query = (
-            self.session.query(
-                row_number,
-                Player.name.label("Namen"),
-                rounded_rating,
-                Rating.winning_quote.label("Sieger Quote"),
-                Rating.games_won.label("Spiele (G)"),
-                Rating.games_lost.label("Spiele (V)"),
-                Rating.last_change.label("Letze Änderung"),
-            )
-            .join(Rating, Player.id == Rating.player)
-            .order_by(Player.id)
-        )
-
-        result = query.all()
-
-        data = pd.DataFrame(result)
-        dfi.export(data.style.hide(axis="index"), "./rating.png")
-
+    def handle_add_rating(self, phone_number):
         try:
-            storage = self.supabase.storage
-            buckets = storage.list_buckets()
-            if not buckets:
-                storage.create_bucket("rating", options={"public": True})
-                self.logger.info("Ein neuer Bucket für das Rating-Tabellenbild wurde erstellt.")
+            self.ratingSystem.add_player_to_rating(phone_number)
+            return f"Rating wurde hinzugefügt."
+        except RatingException as e:
+            return f"Fehler: {e}"
 
-            ratingBucket = storage.from_("rating")
+    def handle_game(self, message, phone_number):
+        if message.lower().startswith("neu"):
+            session[phone_number]["state"] = UserState.ADD_GAME.value
+            return "Bitte geben Sie ein was Sie machen möchten:\nSpieltyp\nSpieler A:Spieler B\nScoreA:ScoreB\n..."
+        elif message.lower().startswith("löschen"):
+            session[phone_number]["state"] = UserState.DELETE_GAME.value
+            return "Bitte geben Sie die ID des Spiels ein, das Sie löschen möchten."
+        else:
+            session.pop(phone_number, None)
+            return "Eingabe nicht erkannt."
 
-            with open("./rating.png", "rb") as f:
-                storage.empty_bucket("rating")
-                ratingBucket.upload(path="./rating.png", file=f, file_options={"content-type": "image/png"})
+    def handle_add_game(self, message, phone_number):
+        try:
+            game_type = message.split("\n")[0]
+            names = message.split("\n")[1]
+            nameA, nameB = names.strip().split(":")
+            scores = [tuple(map(int, match)) for match in re.findall(r"\b(\d+):(\d+)\b", message)]
 
-                res = ratingBucket.get_public_url("rating.png")
-                self.logger.info("Das Rating-Tabellenbild wurde exportiert.")
-                return res
+            logger.info(f"Identified matches: {game_type}, {names}, {scores}")
+
+            ids = self.ratingSystem.add_games(nameA, nameB, scores, game_type, phone_number)
+
+            return "Spiele hinzugefügt. IDs: " + ", ".join(map(str, ids))
+        except RatingException as e:
+            return f"Fehler: {e}"
         except Exception as e:
-            self.logger.error(f"Fehler beim Hochladen des Bildes in den Speicher: {e}")
-            return "Fehler beim Erstellen des Ratings. Bitte versuche es später erneut."
+            return f"Fehler: {e}"
 
-    def custom_add(self, name, rating, quote, games_won, games_lost):
-        if not self.session.query(Player).filter_by(name=name).first():
+    def handle_delete_game(self, message, phone_number):
+        try:
+            id = int(message)
+            self.ratingSystem.delete_game(id, phone_number)
+            return "Spiel wurde gelöscht."
+        except RatingException as e:
+            return f"Fehler: {e}"
+        except Exception as e:
+            return f"Fehler: {e}"
 
-            player = Player(name=name, phone_number="0000000000", country="Deutschland", liga=Liga.KEINE)
-            self.session.add(player)
-            self.session.commit()
 
-        self.add_player_to_rating("0000000000")
+if __name__ == "__main__":
+    serve(app, host="0.0.0.0", port=8080)
