@@ -291,12 +291,3 @@ class RatingSystem:
         except Exception as e:
             self.logger.error(f"Fehler beim Hochladen des Bildes in den Speicher: {e}")
             return "Fehler beim Erstellen des Ratings. Bitte versuche es später erneut."
-
-    def custom_add(self, name, rating, quote, games_won, games_lost):
-        if not self.session.query(Player).filter_by(name=name).first():
-
-            player = Player(name=name, phone_number="0000000000", country="Deutschland", liga=Liga.KEINE)
-            self.session.add(player)
-            self.session.commit()
-
-        self.add_player_to_rating("0000000000")
