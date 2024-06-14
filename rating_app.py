@@ -69,8 +69,26 @@ def whatsapp_message():
     data = request.get_json()
     logger.info(f"Received data: {data}")
     logger.info(f"Received phone_no_id: {data.get('phone_number_id')}")
-    return "Event received", 200
 
+    phone_number_id = data["entry"][0]["changes"][0]["value"]["metadata"]["phone_number_id"]
+    user_phone_number = data["entry"][0]["changes"][0]["value"]["messages"][0]["from"]
+    message = data["entry"][0]["changes"][0]["value"]["messages"][0]["text"]["body"]
+
+    print(f"Phone Number ID: {phone_number_id}")
+    print(f"From: {user_phone_number}")
+    print(f"Body: {message}")
+
+    if phone_number_id and user_phone_number and message:
+        url = f"https://graph.facebook.com/v20.0/{phone_number_id}/messages"
+        payload = {
+            "messaging_product": "whatsapp",
+            "to": user_phone_number,
+            "text": {"body": f"Hi.. I'm Luca, your message is {message}"},
+        }
+
+        response = requests.post(url, json=payload, headers=headers)
+        return jsonify(response.json()), response.status_code
+    return jsonify({"error": "An error occurred"}), 500
     try:
         logger.info("Starting to process message")
         logger.info(request.values)
