@@ -9,6 +9,7 @@ from os import urandom, environ
 from enum import Enum
 from ratingSystem import RatingSystem
 from string import Template
+from message_provider import MessageProvider
 
 
 class UserState(Enum):
@@ -79,27 +80,32 @@ def whatsapp_message():
     print(f"Body: {incoming_message}")
 
     if phone_number_id and phone_number and message:
-
         if phone_number not in session:
             session[phone_number] = {"messages": [], "state": UserState.INITIAL.value}
 
         session[phone_number]["messages"].append(incoming_message)
         logger.debug(f"Session data: {session.get(phone_number, None)}")
 
-        message_processor = MessageProcessor()
-        message = message_processor.handle_message(incoming_message, phone_number, session[phone_number]["state"])
+        if session[phone_number]["state"] == UserState.INITIAL.value:
+            message_provider = MessageProvider()
+            url, headers, payload = message_provider.send_interactive_message(phone_number_id, phone_number)
+            response = requests.post(url, json=payload, headers=headers)
+            return jsonify(response.json()), response.status_code
+        else:
+            message_processor = MessageProcessor()
+            message = message_processor.handle_message(incoming_message, phone_number, session[phone_number]["state"])
 
-        logger.debug(f"Session data: {session.get(phone_number, None)}")
+            logger.debug(f"Session data: {session.get(phone_number, None)}")
 
-        url = f"https://graph.facebook.com/v20.0/{phone_number_id}/messages"
-        payload = {
-            "messaging_product": "whatsapp",
-            "to": phone_number,
-            "text": {"body": message},
-        }
+            url = f"https://graph.facebook.com/v20.0/{phone_number_id}/messages"
+            payload = {
+                "messaging_product": "whatsapp",
+                "to": phone_number,
+                "text": {"body": message},
+            }
 
-        response = requests.post(url, json=payload, headers=headers)
-        return jsonify(response.json()), response.status_code
+            response = requests.post(url, json=payload, headers=headers)
+            return jsonify(response.json()), response.status_code
     return jsonify({"error": "An error occurred"}), 500
 
 
