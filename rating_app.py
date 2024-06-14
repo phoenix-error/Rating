@@ -2,6 +2,7 @@ import logging
 from flask import Flask, request, session, jsonify
 from twilio.twiml.messaging_response import MessagingResponse
 import re
+import json
 import requests
 from waitress import serve
 from exceptions import RatingException
@@ -37,7 +38,7 @@ app = Flask(__name__)
 app.secret_key = urandom(24)
 
 headers_template = Template('{"Authorization": "Bearer ${token}", "Content-Type": "application/json"}')
-headers = headers_template.substitute(token=environ["WHATSAPP_TOKEN"])
+headers = json.loads(headers_template.substitute(token=environ["WHATSAPP_TOKEN"]))
 
 URL = "https://graph.facebook.com/v19.0/325890010616383/messages"
 
@@ -89,27 +90,6 @@ def whatsapp_message():
         response = requests.post(url, json=payload, headers=headers)
         return jsonify(response.json()), response.status_code
     return jsonify({"error": "An error occurred"}), 500
-    try:
-        logger.info("Starting to process message")
-        logger.info(request.values)
-        data = request.json
-        logger.info(f"Received data: {data}")
-        phon_no_id = data.get("phon_no_id")
-        from_number = data.get("from")
-        msg_body = data.get("msg_body")
-
-        url = f"https://graph.facebook.com/v13.0/{phon_no_id}/messages"
-        payload = {
-            "messaging_product": "whatsapp",
-            "to": from_number,
-            "text": {"body": f"Hi.. I'm Luca, your message is {msg_body}"},
-        }
-    except Exception as e:
-        logger.error(f"Error: {e}")
-        return jsonify({"error": "An error occurred"}), 500
-
-    response = requests.post(url, json=payload, headers=headers)
-    return jsonify(response.json()), response.status_code
 
     incoming_msg = request.values.get("Body", "").strip()
     phone_number = request.values.get("From", "").strip().split(":")[-1]
