@@ -59,6 +59,7 @@ def whatsapp_message():
 
     message_processor = MessageProcessor()
     message = message_processor.handle_message(incoming_msg, phone_number, session[phone_number]["state"])
+    logger.debug(f"Session data after handle: {session[phone_number]}")
     return str(create_response(message))
 
 
