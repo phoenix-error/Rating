@@ -1,7 +1,6 @@
 import logging
 from flask import Flask, request, session
 from twilio.twiml.messaging_response import MessagingResponse
-from ratingSystem import RatingSystem
 import re
 from waitress import serve
 from exceptions import RatingException
