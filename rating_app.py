@@ -72,40 +72,36 @@ def whatsapp_message():
     logger.info(f"Received phone_no_id: {data.get('phone_number_id')}")
 
     phone_number_id = data["entry"][0]["changes"][0]["value"]["metadata"]["phone_number_id"]
-    user_phone_number = data["entry"][0]["changes"][0]["value"]["messages"][0]["from"]
-    message = data["entry"][0]["changes"][0]["value"]["messages"][0]["text"]["body"]
+    phone_number = data["entry"][0]["changes"][0]["value"]["messages"][0]["from"]
+    incoming_message = data["entry"][0]["changes"][0]["value"]["messages"][0]["text"]["body"]
 
     print(f"Phone Number ID: {phone_number_id}")
-    print(f"From: {user_phone_number}")
+    print(f"From: {phone_number}")
     print(f"Body: {message}")
 
-    if phone_number_id and user_phone_number and message:
+    if phone_number_id and phone_number and message:
+
+        if phone_number not in session:
+            session[phone_number] = {"messages": [], "state": UserState.INITIAL.value}
+
+        session[phone_number]["messages"].append(incoming_message)
+        logger.debug(f"Session data: {session.get(phone_number, None)}")
+
+        message_processor = MessageProcessor()
+        message = message_processor.handle_message(incoming_message, phone_number, session[phone_number]["state"])
+
+        logger.debug(f"Session data: {session.get(phone_number, None)}")
+
         url = f"https://graph.facebook.com/v20.0/{phone_number_id}/messages"
         payload = {
             "messaging_product": "whatsapp",
-            "to": user_phone_number,
-            "text": {"body": f"Hi.. I'm Luca, your message is {message}"},
+            "to": phone_number,
+            "text": {"body": message},
         }
 
         response = requests.post(url, json=payload, headers=headers)
         return jsonify(response.json()), response.status_code
     return jsonify({"error": "An error occurred"}), 500
-
-    incoming_msg = request.values.get("Body", "").strip()
-    phone_number = request.values.get("From", "").strip().split(":")[-1]
-    logger.debug(f"Received message: {incoming_msg} from {phone_number}")
-
-    if phone_number not in session:
-        session[phone_number] = {"messages": [], "state": UserState.INITIAL.value}
-
-    session[phone_number]["messages"].append(incoming_msg)
-    logger.debug(f"Session data: {session.get(phone_number, None)}")
-
-    message_processor = MessageProcessor()
-    message = message_processor.handle_message(incoming_msg, phone_number, session[phone_number]["state"])
-
-    logger.debug(f"Session data: {session.get(phone_number, None)}")
-    return str(create_response(message))
 
 
 def create_response(message):
