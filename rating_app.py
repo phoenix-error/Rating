@@ -68,6 +68,7 @@ def verify_webhook():
 def whatsapp_message():
     data = request.get_json()
     logger.info(f"Received data: {data}")
+    logger.info(f"Received phone_no_id: {data.get('phon_no_id')}")
     return "Event received", 200
 
     try:
