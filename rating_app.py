@@ -1,5 +1,6 @@
 import logging
-from flask import Flask, request, session
+from flask import Flask, request, session, jsonify
+import requests
 from twilio.twiml.messaging_response import MessagingResponse
 import re
 from waitress import serve
@@ -59,6 +60,25 @@ def verify_webhook():
 
 @app.post("/whatsapp")
 def whatsapp_message():
+
+    data = request.json
+    logger.info(f"Received data: {data}")
+    phon_no_id = data.get("phon_no_id")
+    token = data.get("token")
+    from_number = data.get("from")
+    msg_body = data.get("msg_body")
+
+    url = f"https://graph.facebook.com/v13.0/{phon_no_id}/messages?access_token={token}"
+    headers = {"Content-Type": "application/json"}
+    payload = {
+        "messaging_product": "whatsapp",
+        "to": from_number,
+        "text": {"body": f"Hi.. I'm Luca, your message is {msg_body}"},
+    }
+
+    response = requests.post(url, json=payload, headers=headers)
+    return jsonify(response.json()), response.status_code
+
     incoming_msg = request.values.get("Body", "").strip()
     phone_number = request.values.get("From", "").strip().split(":")[-1]
     logger.debug(f"Received message: {incoming_msg} from {phone_number}")
