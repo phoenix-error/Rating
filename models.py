@@ -14,8 +14,6 @@ class Player(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name = Column(String, nullable=False)
     phone_number = Column(String, nullable=False, unique=True)
-    country = Column(String, nullable=False)
-    liga = Column(String, nullable=False, default=Liga.KEINE.value)
 
     games = relationship("Game", primaryjoin="or_(Player.id==Game.playerA, Player.id==Game.playerB)")
 
