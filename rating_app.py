@@ -8,6 +8,7 @@ from exceptions import RatingException
 from os import urandom, environ
 from enum import Enum
 from ratingSystem import RatingSystem
+from string import Template
 
 
 class UserState(Enum):
@@ -34,6 +35,12 @@ logging.basicConfig(
 app = Flask(__name__)
 
 app.secret_key = urandom(24)
+
+headers_template = Template('{"Authorization": "Bearer ${token}", "Content-Type": "application/json"}')
+headers = headers_template.substitute(token=environ["WHATSAPP_TOKEN"])
+
+phone
+URL = "https://graph.facebook.com/v19.0/325890010616383/messages"
 
 
 @app.route("/")
@@ -64,12 +71,10 @@ def whatsapp_message():
     data = request.json
     logger.info(f"Received data: {data}")
     phon_no_id = data.get("phon_no_id")
-    token = data.get("token")
     from_number = data.get("from")
     msg_body = data.get("msg_body")
 
-    url = f"https://graph.facebook.com/v13.0/{phon_no_id}/messages?access_token={token}"
-    headers = {"Content-Type": "application/json"}
+    url = f"https://graph.facebook.com/v13.0/{phon_no_id}/messages"
     payload = {
         "messaging_product": "whatsapp",
         "to": from_number,
