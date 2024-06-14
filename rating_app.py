@@ -1,6 +1,5 @@
 import logging
 from flask import Flask, request, session, jsonify
-from twilio.twiml.messaging_response import MessagingResponse
 import re
 import json
 import requests
@@ -77,7 +76,7 @@ def whatsapp_message():
 
     print(f"Phone Number ID: {phone_number_id}")
     print(f"From: {phone_number}")
-    print(f"Body: {message}")
+    print(f"Body: {incoming_message}")
 
     if phone_number_id and phone_number and message:
 
@@ -102,12 +101,6 @@ def whatsapp_message():
         response = requests.post(url, json=payload, headers=headers)
         return jsonify(response.json()), response.status_code
     return jsonify({"error": "An error occurred"}), 500
-
-
-def create_response(message):
-    response = MessagingResponse()
-    response.message(message)
-    return response
 
 
 class MessageProcessor:
