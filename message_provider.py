@@ -7,7 +7,7 @@ class MessageProvider:
     def send_interactive_message(phone_number_id, phone_number):
         url = f"https://graph.facebook.com/v20.0/{phone_number_id}/messages"
         headers = {
-            "Authorization": f"Bearer {environ['WHATSAPP_WEBHOOK_TOKEN']}",
+            "Authorization": f"Bearer {environ['WHATSAPP_TOKEN']}",
             "Content-Type": "application/json",
         }
         payload = {
