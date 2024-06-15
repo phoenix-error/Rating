@@ -10,6 +10,9 @@ from enum import Enum
 from ratingSystem import RatingSystem
 from string import Template
 from message_provider import MessageProvider
+from dotenv import load_dotenv
+
+load_dotenv()
 
 
 class UserState(Enum):
@@ -37,11 +40,6 @@ app = Flask(__name__)
 
 app.secret_key = urandom(24)
 
-headers_template = Template('{"Authorization": "Bearer ${token}", "Content-Type": "application/json"}')
-headers = json.loads(headers_template.substitute(token=environ["WHATSAPP_TOKEN"]))
-
-URL = lambda phone_number_id: f"https://graph.facebook.com/v20.0/{phone_number_id}/messages"
-
 
 @app.route("/")
 def test():
@@ -54,6 +52,8 @@ def verify_webhook():
     token = request.args.get("hub.verify_token")
     challenge = request.args.get("hub.challenge")
 
+    logger.info(f"Received request with mode: {mode}, token: {token}, challenge: {challenge}")
+
     # Check if a token and mode are in the query string
     if mode and token:
         # Check the mode and token sent are correct
@@ -62,48 +62,61 @@ def verify_webhook():
             return challenge, 200
         else:
             # Respond with '403 Forbidden' if verify tokens do not match
-            return "Forbidden", 403
+            return jsonify({"status": "error", "message": "Verification failed"}), 403
+    return jsonify({"status": "error", "message": "Missing parameters"}), 400
 
 
 @app.route("/whatsapp", methods=["POST"])
 def whatsapp_message():
     data = request.get_json()
-    logger.info(f"Received data: {data}")
 
-    if "object" in data and "entry" in data:
-        if data["object"] == "whatsapp_business_account":
-            for entry in data["entry"]:
-                phone_number_id = entry["changes"][0]["value"]["metadata"]["phone_number_id"]
-                phone_number = entry["changes"][0]["value"]["metadata"]["from"]
-                incoming_message = entry["changes"][0]["value"]["messages"]["text"]["body"]
+    try:
+        if data.get("object") == "whatsapp_business_account":
+            if (
+                data.get("entry")
+                and data["entry"][0].get("changes")
+                and data["entry"][0]["changes"][0].get("value")
+                and data["entry"][0]["changes"][0]["value"].get("messages")
+                and data["entry"][0]["changes"][0]["value"]["messages"][0].get("from")
+            ):
+                handle_message(data.get("entry")[0])
+                return jsonify({"status": "ok"}), 200
+            else:
+                return jsonify({"status": "error", "message": "Malformed request"}), 404
+    except Exception as e:
+        logger.error(f"Error: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
 
-                if phone_number_id and phone_number and message:
-                    if phone_number not in session:
-                        session[phone_number] = {"messages": [], "state": UserState.INITIAL.value}
 
-                    session[phone_number]["messages"].append(incoming_message)
-                    logger.debug(f"Session data: {session.get(phone_number, None)}")
+def handle_message(entry):
+    phone_number_id = entry["changes"][0]["value"]["metadata"]["phone_number_id"]
+    phone_number = entry["changes"][0]["value"]["messages"][0]["from"]
+    incoming_message = entry["changes"][0]["value"]["messages"][0]["text"]["body"]
 
-                    if session[phone_number]["state"] == UserState.INITIAL.value:
-                        message_provider = MessageProvider()
-                        url, headers, payload = message_provider.send_interactive_message(phone_number_id, phone_number)
-                        response = requests.post(url, json=payload, headers=headers)
-                        return jsonify(response.json()), response.status_code
-                    else:
-                        message_processor = MessageProcessor()
-                        message = message_processor.handle_message(incoming_message, phone_number, session[phone_number]["state"])
+    if phone_number_id and phone_number and incoming_message:
+        if phone_number not in session:
+            session[phone_number] = {"messages": [], "state": UserState.INITIAL.value}
 
-                        logger.debug(f"Session data: {session.get(phone_number, None)}")
+        session[phone_number]["messages"].append(incoming_message)
 
-                        payload = {
-                            "messaging_product": "whatsapp",
-                            "to": phone_number,
-                            "text": {"body": message},
-                        }
+        message_processor = MessageProcessor()
+        message = message_processor.handle_message(incoming_message, phone_number, session[phone_number]["state"])
 
-                        response = requests.post(URL(phone_number_id), json=payload, headers=headers)
-                        return jsonify(response.json()), response.status_code
-    return jsonify({"error": "An error occurred"}), 500
+        headers = {
+            "Authorization": "Bearer " + environ["WHATSAPP_TOKEN"],
+            "Content-Type": "application/json",
+        }
+        url = f"https://graph.facebook.com/v20.0/{phone_number_id}/messages"
+        payload = {
+            "messaging_product": "whatsapp",
+            "to": phone_number,
+            "type": "text",
+            "text": {"body": message},
+        }
+
+        response = requests.post(url, json=payload, headers=headers)
+        logger.info(f"Response: {response.json()}")
+        response.raise_for_status()
 
 
 class MessageProcessor:

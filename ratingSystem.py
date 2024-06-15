@@ -22,10 +22,12 @@ import logging
 from os import environ
 from sqlalchemy.exc import NoResultFound
 from supabase import create_client, Client
+from dotenv import load_dotenv
 
 
 class RatingSystem:
     def __init__(self):
+        load_dotenv()
         username = environ["SUPABASE_USER"]
         password = environ["SUPABASE_PASSWORD"]
         host = environ["SUPABASE_HOST"]
