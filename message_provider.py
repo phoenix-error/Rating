@@ -24,16 +24,26 @@ class MessageProvider:
                     "button": "Zeige Befehle",
                     "sections": [
                         {
-                            "title": "Befehle",
+                            "title": "Spieler",
                             "rows": [
                                 {"id": "add_player", "title": "Spieler hinzufügen", "description": ""},
                                 {"id": "delete_player", "title": "Spieler löschen", "description": ""},
+                            ],
+                        },
+                        {
+                            "title": "Rating",
+                            "rows": [
                                 {"id": "add_rating", "title": "Rating hinzufügen", "description": ""},
                                 {"id": "view_rating", "title": "Rating anschauen", "description": ""},
+                            ],
+                        },
+                        {
+                            "title": "Spiel",
+                            "rows": [
                                 {"id": "add_game", "title": "Spiel hinzufügen", "description": ""},
                                 {"id": "delete_game", "title": "Spiel löschen", "description": ""},
                             ],
-                        }
+                        },
                     ],
                 },
             },

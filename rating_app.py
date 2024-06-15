@@ -89,6 +89,7 @@ def whatsapp_message():
 
 
 def handle_message(entry):
+    logger.info(f"Received message: {entry}")
     phone_number_id = entry["changes"][0]["value"]["metadata"]["phone_number_id"]
     phone_number = entry["changes"][0]["value"]["messages"][0]["from"]
     incoming_message = entry["changes"][0]["value"]["messages"][0]["text"]["body"]
