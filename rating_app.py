@@ -97,7 +97,7 @@ def handle_message(entry):
         if phone_number not in session:
             session[phone_number] = {"messages": [], "state": UserState.INITIAL.value}
             message_provider = MessageProvider()
-            (url, headers, payload) = message_provider.send_interactive_message()
+            (url, headers, payload) = message_provider.send_interactive_message(phone_number_id, phone_number)
             response = requests.post(url, json=payload, headers=headers)
             logger.info(f"Response: {response.json()}")
             response.raise_for_status()
