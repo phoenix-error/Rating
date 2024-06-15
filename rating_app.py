@@ -96,27 +96,33 @@ def handle_message(entry):
     if phone_number_id and phone_number and incoming_message:
         if phone_number not in session:
             session[phone_number] = {"messages": [], "state": UserState.INITIAL.value}
+            message_provider = MessageProvider()
+            (url, headers, payload) = message_provider.send_interactive_message()
+            response = requests.post(url, json=payload, headers=headers)
+            logger.info(f"Response: {response.json()}")
+            response.raise_for_status()
 
-        session[phone_number]["messages"].append(incoming_message)
+        else:
+            session[phone_number]["messages"].append(incoming_message)
 
-        message_processor = MessageProcessor()
-        message = message_processor.handle_message(incoming_message, phone_number, session[phone_number]["state"])
+            message_processor = MessageProcessor()
+            message = message_processor.handle_message(incoming_message, phone_number, session[phone_number]["state"])
 
-        headers = {
-            "Authorization": "Bearer " + environ["WHATSAPP_TOKEN"],
-            "Content-Type": "application/json",
-        }
-        url = f"https://graph.facebook.com/v20.0/{phone_number_id}/messages"
-        payload = {
-            "messaging_product": "whatsapp",
-            "to": phone_number,
-            "type": "text",
-            "text": {"body": message},
-        }
+            headers = {
+                "Authorization": "Bearer " + environ["WHATSAPP_TOKEN"],
+                "Content-Type": "application/json",
+            }
+            url = f"https://graph.facebook.com/v20.0/{phone_number_id}/messages"
+            payload = {
+                "messaging_product": "whatsapp",
+                "to": phone_number,
+                "type": "text",
+                "text": {"body": message},
+            }
 
-        response = requests.post(url, json=payload, headers=headers)
-        logger.info(f"Response: {response.json()}")
-        response.raise_for_status()
+            response = requests.post(url, json=payload, headers=headers)
+            logger.info(f"Response: {response.json()}")
+            response.raise_for_status()
 
 
 class MessageProcessor:
