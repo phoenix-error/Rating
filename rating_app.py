@@ -40,7 +40,7 @@ app.secret_key = urandom(24)
 headers_template = Template('{"Authorization": "Bearer ${token}", "Content-Type": "application/json"}')
 headers = json.loads(headers_template.substitute(token=environ["WHATSAPP_TOKEN"]))
 
-URL = "https://graph.facebook.com/v19.0/325890010616383/messages"
+URL = lambda phone_number_id: f"https://graph.facebook.com/v20.0/{phone_number_id}/messages"
 
 
 @app.route("/")
@@ -69,43 +69,40 @@ def verify_webhook():
 def whatsapp_message():
     data = request.get_json()
     logger.info(f"Received data: {data}")
-    logger.info(f"Received phone_no_id: {data.get('phone_number_id')}")
 
-    phone_number_id = data["entry"][0]["changes"][0]["value"]["metadata"]["phone_number_id"]
-    phone_number = data["entry"][0]["changes"][0]["value"]["messages"][0]["from"]
-    incoming_message = data["entry"][0]["changes"][0]["value"]["messages"][0]["text"]["body"]
+    if "object" in data and "entry" in data:
+        if data["object"] == "whatsapp_business_account":
+            for entry in data["entry"]:
+                phone_number_id = entry["changes"][0]["value"]["metadata"]["phone_number_id"]
+                phone_number = entry["changes"][0]["value"]["metadata"]["from"]
+                incoming_message = entry["changes"][0]["value"]["message"]["text"]["body"]
 
-    print(f"Phone Number ID: {phone_number_id}")
-    print(f"From: {phone_number}")
-    print(f"Body: {incoming_message}")
+                if phone_number_id and phone_number and message:
+                    if phone_number not in session:
+                        session[phone_number] = {"messages": [], "state": UserState.INITIAL.value}
 
-    if phone_number_id and phone_number and message:
-        if phone_number not in session:
-            session[phone_number] = {"messages": [], "state": UserState.INITIAL.value}
+                    session[phone_number]["messages"].append(incoming_message)
+                    logger.debug(f"Session data: {session.get(phone_number, None)}")
 
-        session[phone_number]["messages"].append(incoming_message)
-        logger.debug(f"Session data: {session.get(phone_number, None)}")
+                    if session[phone_number]["state"] == UserState.INITIAL.value:
+                        message_provider = MessageProvider()
+                        url, headers, payload = message_provider.send_interactive_message(phone_number_id, phone_number)
+                        response = requests.post(url, json=payload, headers=headers)
+                        return jsonify(response.json()), response.status_code
+                    else:
+                        message_processor = MessageProcessor()
+                        message = message_processor.handle_message(incoming_message, phone_number, session[phone_number]["state"])
 
-        if session[phone_number]["state"] == UserState.INITIAL.value:
-            message_provider = MessageProvider()
-            url, headers, payload = message_provider.send_interactive_message(phone_number_id, phone_number)
-            response = requests.post(url, json=payload, headers=headers)
-            return jsonify(response.json()), response.status_code
-        else:
-            message_processor = MessageProcessor()
-            message = message_processor.handle_message(incoming_message, phone_number, session[phone_number]["state"])
+                        logger.debug(f"Session data: {session.get(phone_number, None)}")
 
-            logger.debug(f"Session data: {session.get(phone_number, None)}")
+                        payload = {
+                            "messaging_product": "whatsapp",
+                            "to": phone_number,
+                            "text": {"body": message},
+                        }
 
-            url = f"https://graph.facebook.com/v20.0/{phone_number_id}/messages"
-            payload = {
-                "messaging_product": "whatsapp",
-                "to": phone_number,
-                "text": {"body": message},
-            }
-
-            response = requests.post(url, json=payload, headers=headers)
-            return jsonify(response.json()), response.status_code
+                        response = requests.post(URL(phone_number_id), json=payload, headers=headers)
+                        return jsonify(response.json()), response.status_code
     return jsonify({"error": "An error occurred"}), 500
 
 
