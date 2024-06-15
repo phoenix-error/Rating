@@ -75,7 +75,7 @@ def whatsapp_message():
             for entry in data["entry"]:
                 phone_number_id = entry["changes"][0]["value"]["metadata"]["phone_number_id"]
                 phone_number = entry["changes"][0]["value"]["metadata"]["from"]
-                incoming_message = entry["changes"][0]["value"]["message"]["text"]["body"]
+                incoming_message = entry["changes"][0]["value"]["messages"]["text"]["body"]
 
                 if phone_number_id and phone_number and message:
                     if phone_number not in session:
