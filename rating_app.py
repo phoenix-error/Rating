@@ -1,5 +1,5 @@
 import logging
-from flask import Flask, request, session, jsonify
+from flask import Flask, request, jsonify
 import re
 import requests
 from waitress import serve
@@ -9,7 +9,6 @@ from enum import Enum
 from ratingSystem import RatingSystem
 from message_provider import MessageProvider
 from dotenv import load_dotenv
-from flask_session import Session
 
 load_dotenv()
 
@@ -32,10 +31,8 @@ logging.basicConfig(
 
 
 app = Flask(__name__)
-app.config["SESSION_TYPE"] = "filesystem"
-app.secret_key = urandom(24)
 
-Session(app)
+session = dict()
 
 
 url_for = lambda phone_number_id: f"https://graph.facebook.com/v20.0/{phone_number_id}/messages"
