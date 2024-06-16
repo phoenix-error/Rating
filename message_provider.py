@@ -63,7 +63,7 @@ class MessageProvider:
             "type": "interactive",
             "interactive": {
                 "type": "button",
-                "header": "",
+                "header": "Bestätigung",
                 "body": {"text": message},
                 "action": {
                     "buttons": [
