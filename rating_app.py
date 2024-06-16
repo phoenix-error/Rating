@@ -118,11 +118,7 @@ def handle_message(phone_number_id, message):
             message_processor = MessageProcessor()
             message = message_processor.handle_message(incoming_message, phone_number, session[phone_number]["state"])
 
-            if message.lower().startswith("du möchtest"):
-                logger.info(f"Sending confirmation message: {message}")
-                MessageProvider.send_confirmation_message(phone_number_id, phone_number, message)
-            else:
-                post_message(phone_number_id, phone_number, message)
+            post_message(phone_number_id, phone_number, message)
     else:
         post_message(phone_number_id, phone_number, "Eingabe nicht erkannt.")
 
@@ -151,13 +147,13 @@ class MessageProcessor:
             return self.handle_initial_state(message, phone_number)
 
         elif current_state == UserState.ADD_PLAYER.value:
-            self.handle_add_player(message, phone_number)
+            return self.handle_add_player(message, phone_number)
 
         elif current_state == UserState.ADD_GAME.value:
-            self.handle_add_game(message, phone_number)
+            return self.handle_add_game(message, phone_number)
 
         elif current_state == UserState.DELETE_GAME.value:
-            self.handle_delete_game(message, phone_number)
+            return self.handle_delete_game(message, phone_number)
 
         else:
             del session[phone_number]
