@@ -130,7 +130,6 @@ def handle_message(phone_number_id, message):
         post_message(phone_number_id, phone_number, "Eingabe nicht erkannt.")
 
     logger.info(f"Final Session: {session.get(phone_number)}")
-    logger.info(f"Whole session: {session}")
 
 
 def post_message(phone_number_id, phone_number, message):
@@ -204,6 +203,7 @@ class MessageProcessor:
             except RatingException as e:
                 return f"Fehler: {e}"
         elif message == "Rating anschauen":
+            del session[phone_number]
             return self.ratingSystem.rating_image()
 
     def handle_add_player_confirmation(self, name, phone_number):
