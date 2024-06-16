@@ -95,8 +95,9 @@ def whatsapp_message():
 
 def handle_message(phone_number_id, message):
     logger.info(f"Received message: {message} with phone number id: {phone_number_id}")
-    logger.info(f"Session: {session.get(phone_number)}")
+
     phone_number = message["from"]
+    logger.info(f"Session: {session.get(phone_number)}")
 
     match message["type"]:
         case "text":
