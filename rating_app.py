@@ -97,7 +97,7 @@ def handle_message(phone_number_id, message):
     logger.info(f"Received message: {message} with phone number id: {phone_number_id}")
 
     phone_number = message["from"]
-    logger.info(f"Session: {session.get(phone_number)}")
+    logger.info(f"Inital Session: {session.get(phone_number)}")
 
     match message["type"]:
         case "text":
@@ -106,24 +106,30 @@ def handle_message(phone_number_id, message):
             if message["interactive"]["type"] == "list_reply":
                 incoming_message = message["interactive"]["list_reply"]["title"]
             else:
+                logger.info(f"Interactive message type not supported: {message}")
                 post_message(phone_number_id, phone_number, "Eingabe nicht erkannt.")
         case _:
+            logger.info(f"Message type not supported: {message}")
             post_message(phone_number_id, phone_number, "Eingabe nicht erkannt.")
 
     if phone_number and incoming_message:
         if not session.get(phone_number):
             session[phone_number] = {"state": UserState.INITIAL.value}
+            logger.info(f"Sending initial message to {phone_number}")
             MessageProvider.send_inital_message(phone_number_id, phone_number)
         else:
             message_processor = MessageProcessor()
-            message = message_processor.handle_message(
-                phone_number_id, incoming_message, phone_number, session[phone_number]["state"]
-            )
+            message = message_processor.handle_message(incoming_message, phone_number, session[phone_number]["state"])
 
-            if message:
+            if message.lower().startswith("du möchtest"):
+                logger.info(f"Sending confirmation message: {message}")
+                MessageProvider.send_confirmation_message(phone_number_id, phone_number, message)
+            else:
                 post_message(phone_number_id, phone_number, message)
     else:
         post_message(phone_number_id, phone_number, "Eingabe nicht erkannt.")
+
+    logger.info(f"Final Session: {session.get(phone_number)}")
 
 
 def post_message(phone_number_id, phone_number, message):
@@ -135,7 +141,7 @@ def post_message(phone_number_id, phone_number, message):
     }
 
     response = requests.post(url_for(phone_number_id), json=payload, headers=headers)
-    logger.info(f"Response: {response.json()}")
+    logger.info(f"Sending response: {response.text}")
     response.raise_for_status()
 
 
@@ -143,29 +149,25 @@ class MessageProcessor:
     def __init__(self):
         self.ratingSystem = RatingSystem()
 
-    def handle_message(self, phone_number_id, message: str, phone_number: str, current_state: str) -> str:
+    def handle_message(self, message: str, phone_number: str, current_state: str) -> str:
         if current_state == UserState.INITIAL.value:
             return self.handle_initial_state(message, phone_number)
 
         elif current_state == UserState.ADD_PLAYER.value:
             session[phone_number]["state"] = UserState.ADD_PlAYER_CONFIRMATION.value
-            MessageProvider.send_confirmation_message(phone_number_id, phone_number, f"Du möchtest Spieler {message} hinzufügen?")
+            return f"Du möchtest Spieler {message} hinzufügen?"
         elif current_state == UserState.ADD_PlAYER_CONFIRMATION.value:
             return self.handle_add_player_confirmation(message, phone_number)
 
         elif current_state == UserState.ADD_GAME.value:
             session[phone_number]["state"] = UserState.ADD_GAME_CONFIRMATION.value
-            MessageProvider.send_confirmation_message(
-                phone_number_id, phone_number, f"Du möchtest folgendes Spiel hinzufügen?\n{message}\n"
-            )
+            return f"Du möchtest folgendes Spiel hinzufügen?\n{message}\n"
         elif current_state == UserState.ADD_GAME_CONFIRMATION.value:
             return self.handle_add_game_confirmation(message, phone_number)
 
         elif current_state == UserState.DELETE_GAME.value:
             session[phone_number]["state"] = UserState.DELETE_GAME_CONFIRMATION.value
-            MessageProvider.send_confirmation_message(
-                phone_number_id, phone_number, f"Du möchtest Spiel mit der ID: {message} löschen?"
-            )
+            return f"Du möchtest Spiel mit der ID: {message} löschen?"
         elif current_state == UserState.DELETE_GAME_CONFIRMATION.value:
             return self.handle_delete_game_confirmation(message, phone_number)
 
