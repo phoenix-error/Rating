@@ -18,12 +18,8 @@ load_dotenv()
 class UserState(Enum):
     INITIAL = "initial"
 
-    # Player states
-    PLAYER = "player"
     ADD_PLAYER = "add_player"
 
-    # Game states
-    GAME = "game"
     ADD_GAME = "add_game"
     DELETE_GAME = "delete_game"
 
@@ -70,42 +66,36 @@ def verify_webhook():
 def whatsapp_message():
     data = request.get_json()
 
-    try:
-        if data.get("object") == "whatsapp_business_account":
-            if (
-                data.get("entry")
-                and data["entry"][0].get("changes")
-                and data["entry"][0]["changes"][0].get("value")
-                and data["entry"][0]["changes"][0]["value"].get("messages")
-                and data["entry"][0]["changes"][0]["value"]["messages"][0].get("from")
-            ):
-                handle_message(data.get("entry")[0])
-                return jsonify({"status": "ok"}), 200
-            else:
-                return jsonify({"status": "error", "message": "Malformed request"}), 404
-    except Exception as e:
-        logger.error(f"Error: {e}")
-        return jsonify({"status": "error", "message": str(e)}), 500
+    if data.get("object") == "whatsapp_business_account":
+        entry = data.get("entry")
+        if entry and entry[0].get("changes"):
+            change = entry[0].get("changes")[0]
+            if change and change.get("value"):
+                value = change.get("value")
+                if value["metadata"]["phone_number_id"] and value["messages"][0]:
+                    phone_number_id = value["metadata"]["phone_number_id"]
+                    message = value["messages"][0]
+
+                    handle_message(phone_number_id, message)
+
+    return "OK", 200
 
 
-def handle_message(entry):
-    logger.info(f"Received message: {entry}")
-    phone_number_id = entry["changes"][0]["value"]["metadata"]["phone_number_id"]
-    phone_number = entry["changes"][0]["value"]["messages"][0]["from"]
-    incoming_message = entry["changes"][0]["value"]["messages"][0]["text"]["body"]
+def handle_message(phone_number_id, message):
+    logger.info(f"Received message: {message} with phone number id: {phone_number_id}")
 
-    if phone_number_id and phone_number and incoming_message:
+    phone_number = message["from"]["phone_number"]
+    incoming_message = message["message"]["text"]
+
+    if phone_number and incoming_message:
         if phone_number not in session:
-            session[phone_number] = {"messages": [], "state": UserState.INITIAL.value}
+            session[phone_number] = {"state": UserState.INITIAL.value}
             message_provider = MessageProvider()
             (url, headers, payload) = message_provider.send_interactive_message(phone_number_id, phone_number)
             response = requests.post(url, json=payload, headers=headers)
             logger.info(f"Response: {response.json()}")
             response.raise_for_status()
-
         else:
-            session[phone_number]["messages"].append(incoming_message)
-
             message_processor = MessageProcessor()
             message = message_processor.handle_message(incoming_message, phone_number, session[phone_number]["state"])
 
@@ -134,13 +124,9 @@ class MessageProcessor:
         if current_state == UserState.INITIAL.value:
             return self.handle_initial_state(message, phone_number)
 
-        elif current_state == UserState.PLAYER.value:
-            return self.handle_player(message, phone_number)
         elif current_state == UserState.ADD_PLAYER.value:
             return self.handle_add_player(message, phone_number)
 
-        elif current_state == UserState.GAME.value:
-            return self.handle_game(message, phone_number)
         elif current_state == UserState.ADD_GAME.value:
             return self.handle_add_game(message, phone_number)
         elif current_state == UserState.DELETE_GAME.value:
@@ -151,27 +137,10 @@ class MessageProcessor:
             return "Eingabe nicht erkannt."
 
     def handle_initial_state(self, message, phone_number) -> str:
-        if message.lower() == "rating":
-            session.pop(phone_number, None)
-            return self.ratingSystem.rating_image()
-        elif message.lower().startswith("spieler"):
-            session[phone_number]["state"] = UserState.PLAYER.value
-            return "Bitte geben Sie ein was Sie machen möchten:\nHinzufügen, Löschen, Rating hinzufügen"
-        elif message.lower().startswith("spiel"):
-            session[phone_number]["state"] = UserState.GAME.value
-            return "Bitte geben Sie ein was Sie machen möchten:\nNeu, Löschen"
-        else:
-            session.pop(phone_number, None)
-            return "Eingabe nicht erkannt."
-
-    def handle_rating(self):
-        return self.ratingSystem.rating_image()
-
-    def handle_player(self, message, phone_number):
-        if message.lower().startswith("hinzufügen"):
+        if message == "Spieler hinzufügen":
             session[phone_number]["state"] = UserState.ADD_PLAYER.value
             return "Bitte gib deinen Namen ein."
-        elif message.lower().startswith("löschen"):
+        elif message == "Spieler löschen":
             session.pop(phone_number, None)
             try:
                 name = self.ratingSystem.delete_player(phone_number)
@@ -179,15 +148,23 @@ class MessageProcessor:
             except RatingException as e:
                 return f"Fehler: {e}"
 
-        elif message.lower().startswith("rating hinzufügen"):
+        # Spiel
+        elif message == "Spiel hinzufügen":
+            session[phone_number]["state"] = UserState.ADD_GAME.value
+            return "Bitte geben Sie ein was Sie machen möchten:\nSpieltyp\nSpieler A:Spieler B\nScoreA:ScoreB\n..."
+        elif message == "Spiel löschen":
+            session[phone_number]["state"] = UserState.DELETE_GAME.value
+            return "Bitte geben Sie die ID des Spiels ein, das Sie löschen möchten."
+
+        # Rating
+        elif message == "Rating hinzufügen":
             try:
                 self.ratingSystem.add_player_to_rating(phone_number)
-                return f"Du wurdest zum Rating hinzugefügt."
+                return f"Du wurdest zu Rating hinzugefügt."
             except RatingException as e:
                 return f"Fehler: {e}"
-        else:
-            session.pop(phone_number, None)
-            return "Eingabe nicht erkannt."
+        elif message == "Rating anschauen":
+            return self.ratingSystem.rating_image()
 
     def handle_add_player(self, name, phone_number):
         try:
@@ -195,24 +172,6 @@ class MessageProcessor:
             return f"Spieler {name} wurde hinzugefügt."
         except RatingException as e:
             return f"Fehler: {e}"
-
-    def handle_add_rating(self, phone_number):
-        try:
-            self.ratingSystem.add_player_to_rating(phone_number)
-            return f"Rating wurde hinzugefügt."
-        except RatingException as e:
-            return f"Fehler: {e}"
-
-    def handle_game(self, message, phone_number):
-        if message.lower().startswith("neu"):
-            session[phone_number]["state"] = UserState.ADD_GAME.value
-            return "Bitte geben Sie ein was Sie machen möchten:\nSpieltyp\nSpieler A:Spieler B\nScoreA:ScoreB\n..."
-        elif message.lower().startswith("löschen"):
-            session[phone_number]["state"] = UserState.DELETE_GAME.value
-            return "Bitte geben Sie die ID des Spiels ein, das Sie löschen möchten."
-        else:
-            session.pop(phone_number, None)
-            return "Eingabe nicht erkannt."
 
     def handle_add_game(self, message, phone_number):
         try:

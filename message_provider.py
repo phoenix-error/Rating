@@ -3,13 +3,14 @@ from os import environ
 
 class MessageProvider:
 
+    url_for = lambda phone_number_id: f"https://graph.facebook.com/v20.0/{phone_number_id}/messages"
+    headers = {
+        "Authorization": f"Bearer {environ['WHATSAPP_TOKEN']}",
+        "Content-Type": "application/json",
+    }
+
     @staticmethod
-    def send_interactive_message(phone_number_id, phone_number):
-        url = f"https://graph.facebook.com/v20.0/{phone_number_id}/messages"
-        headers = {
-            "Authorization": f"Bearer {environ['WHATSAPP_TOKEN']}",
-            "Content-Type": "application/json",
-        }
+    def send_inital_message(phone_number_id, phone_number):
         payload = {
             "messaging_product": "whatsapp",
             "recipient_type": "individual",
@@ -49,4 +50,26 @@ class MessageProvider:
             },
         }
 
-        return (url, headers, payload)
+        return (MessageProvider.url_for(phone_number_id), MessageProvider.headers, payload)
+
+    @staticmethod
+    def send_confirmation_message(phone_number_id, phone_number, message):
+        payload = {
+            "messaging_product": "whatsapp",
+            "recipient_type": "individual",
+            "to": phone_number,
+            "type": "interactive",
+            "interactive": {
+                "type": "button",
+                "header": "",
+                "body": {"text": message},
+                "action": {
+                    "buttons": [
+                        {"type": "reply", "reply": {"id": "confirm_yes", "title": "Ja"}},
+                        {"type": "reply", "reply": {"id": "confirm_no", "title": "Nein"}},
+                    ]
+                },
+            },
+        }
+
+        return (MessageProvider.url_for(phone_number_id), MessageProvider.headers, payload)
