@@ -36,6 +36,12 @@ app = Flask(__name__)
 
 app.secret_key = urandom(24)
 
+url_for = lambda phone_number_id: f"https://graph.facebook.com/v20.0/{phone_number_id}/messages"
+headers = {
+    "Authorization": "Bearer " + environ["WHATSAPP_TOKEN"],
+    "Content-Type": "application/json",
+}
+
 
 @app.route("/")
 def test():
@@ -85,7 +91,17 @@ def handle_message(phone_number_id, message):
     logger.info(f"Received message: {message} with phone number id: {phone_number_id}")
 
     phone_number = message["from"]
-    incoming_message = message["text"]["body"]
+
+    match message["type"]:
+        case "text":
+            incoming_message = message["text"]["body"]
+        case "interactive":
+            if message["interactive"]["type"] == "list_reply":
+                incoming_message = message["interactive"]["list_reply"]["title"]
+            else:
+                post_message(phone_number_id, phone_number, "Eingabe nicht erkannt.")
+        case _:
+            post_message(phone_number_id, phone_number, "Eingabe nicht erkannt.")
 
     if phone_number and incoming_message:
         if phone_number not in session:
@@ -99,21 +115,20 @@ def handle_message(phone_number_id, message):
             message_processor = MessageProcessor()
             message = message_processor.handle_message(incoming_message, phone_number, session[phone_number]["state"])
 
-            headers = {
-                "Authorization": "Bearer " + environ["WHATSAPP_TOKEN"],
-                "Content-Type": "application/json",
-            }
-            url = f"https://graph.facebook.com/v20.0/{phone_number_id}/messages"
-            payload = {
-                "messaging_product": "whatsapp",
-                "to": phone_number,
-                "type": "text",
-                "text": {"body": message},
-            }
+            post_message(phone_number_id, phone_number, message)
 
-            response = requests.post(url, json=payload, headers=headers)
-            logger.info(f"Response: {response.json()}")
-            response.raise_for_status()
+
+def post_message(phone_number_id, phone_number, message):
+    payload = {
+        "messaging_product": "whatsapp",
+        "to": phone_number,
+        "type": "text",
+        "text": {"body": message},
+    }
+
+    response = requests.post(url_for(phone_number_id), json=payload, headers=headers)
+    logger.info(f"Response: {response.json()}")
+    response.raise_for_status()
 
 
 class MessageProcessor:
