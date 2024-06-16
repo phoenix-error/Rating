@@ -1,4 +1,5 @@
 from os import environ
+import requests
 
 
 class MessageProvider:
@@ -50,7 +51,8 @@ class MessageProvider:
             },
         }
 
-        return (MessageProvider.url_for(phone_number_id), MessageProvider.headers, payload)
+        response = requests.post(MessageProvider.url_for(phone_number_id), json=payload, headers=MessageProvider.headers)
+        response.raise_for_status()
 
     @staticmethod
     def send_confirmation_message(phone_number_id, phone_number, message):
@@ -72,4 +74,5 @@ class MessageProvider:
             },
         }
 
-        return (MessageProvider.url_for(phone_number_id), MessageProvider.headers, payload)
+        response = requests.post(MessageProvider.url_for(phone_number_id), json=payload, headers=MessageProvider.headers)
+        response.raise_for_status()

@@ -81,8 +81,11 @@ def whatsapp_message():
                 if value["metadata"]["phone_number_id"] and value["messages"][0]:
                     phone_number_id = value["metadata"]["phone_number_id"]
                     message = value["messages"][0]
-
-                    handle_message(phone_number_id, message)
+                    try:
+                        handle_message(phone_number_id, message)
+                    except Exception as e:
+                        logger.exception("Error while handling message. {e}")
+                        return "Error", 200
 
     return "OK", 200
 
@@ -106,11 +109,7 @@ def handle_message(phone_number_id, message):
     if phone_number and incoming_message:
         if phone_number not in session:
             session[phone_number] = {"state": UserState.INITIAL.value}
-            message_provider = MessageProvider()
-            (url, headers, payload) = message_provider.send_inital_message(phone_number_id, phone_number)
-            response = requests.post(url, json=payload, headers=headers)
-            logger.info(f"Response: {response.json()}")
-            response.raise_for_status()
+            MessageProvider.send_inital_message(phone_number_id, phone_number)
         else:
             message_processor = MessageProcessor()
             message = message_processor.handle_message(incoming_message, phone_number, session[phone_number]["state"])
