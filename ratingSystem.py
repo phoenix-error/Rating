@@ -272,7 +272,7 @@ class RatingSystem:
         result = query.all()
 
         data = pd.DataFrame(result)
-        dfi.export(data.style.hide(axis="index"), "./rating.png", table_conversion="selenium")
+        dfi.export(data.style.hide(axis="index"), "./rating.png", table_conversion="matplotlib")
 
         try:
             storage = self.supabase.storage

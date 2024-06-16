@@ -1,5 +1,6 @@
 pandas
 dataframe-image
+matplotlib
 twilio
 flask
 flask-session
