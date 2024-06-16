@@ -116,7 +116,9 @@ def handle_message(phone_number_id, message):
             MessageProvider.send_inital_message(phone_number_id, phone_number)
         else:
             message_processor = MessageProcessor()
-            message = message_processor.handle_message(incoming_message, phone_number, session[phone_number]["state"])
+            message = message_processor.handle_message(
+                phone_number_id, incoming_message, phone_number, session[phone_number]["state"]
+            )
 
             if message:
                 post_message(phone_number_id, phone_number, message)
@@ -141,25 +143,29 @@ class MessageProcessor:
     def __init__(self):
         self.ratingSystem = RatingSystem()
 
-    def handle_message(self, message: str, phone_number: str, current_state: str) -> str:
+    def handle_message(self, phone_number_id, message: str, phone_number: str, current_state: str) -> str:
         if current_state == UserState.INITIAL.value:
             return self.handle_initial_state(message, phone_number)
 
         elif current_state == UserState.ADD_PLAYER.value:
             session[phone_number]["state"] = UserState.ADD_PlAYER_CONFIRMATION.value
-            MessageProvider.send_confirmation_message(phone_number, f"Du möchtest Spieler {message} hinzufügen?")
+            MessageProvider.send_confirmation_message(phone_number_id, phone_number, f"Du möchtest Spieler {message} hinzufügen?")
         elif current_state == UserState.ADD_PlAYER_CONFIRMATION.value:
             return self.handle_add_player_confirmation(message, phone_number)
 
         elif current_state == UserState.ADD_GAME.value:
             session[phone_number]["state"] = UserState.ADD_GAME_CONFIRMATION.value
-            MessageProvider.send_confirmation_message(phone_number, f"Du möchtest folgendes Spiel hinzufügen?\n{message}\n")
+            MessageProvider.send_confirmation_message(
+                phone_number_id, phone_number, f"Du möchtest folgendes Spiel hinzufügen?\n{message}\n"
+            )
         elif current_state == UserState.ADD_GAME_CONFIRMATION.value:
             return self.handle_add_game_confirmation(message, phone_number)
 
         elif current_state == UserState.DELETE_GAME.value:
             session[phone_number]["state"] = UserState.DELETE_GAME_CONFIRMATION.value
-            MessageProvider.send_confirmation_message(phone_number, f"Du möchtest Spiel mit der ID: {message} löschen?")
+            MessageProvider.send_confirmation_message(
+                phone_number_id, phone_number, f"Du möchtest Spiel mit der ID: {message} löschen?"
+            )
         elif current_state == UserState.DELETE_GAME_CONFIRMATION.value:
             return self.handle_delete_game_confirmation(message, phone_number)
 
