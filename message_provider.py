@@ -63,12 +63,13 @@ class MessageProvider:
             "type": "interactive",
             "interactive": {
                 "type": "button",
-                "header": "Bestätigung",
+                "header": "Ist das korrekt?",
                 "body": {"text": message},
+                "footer": {"text": "<FOOTER_TEXT>"},
                 "action": {
                     "buttons": [
-                        {"type": "reply", "reply": {"id": "confirm_yes", "title": "Ja"}},
-                        {"type": "reply", "reply": {"id": "confirm_no", "title": "Nein"}},
+                        {"type": "reply", "reply": {"id": "yes", "title": "Ja"}},
+                        {"type": "reply", "reply": {"id": "no", "title": "Nein"}},
                     ]
                 },
             },
