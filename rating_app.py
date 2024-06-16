@@ -1,16 +1,15 @@
 import logging
 from flask import Flask, request, session, jsonify
 import re
-import json
 import requests
 from waitress import serve
 from exceptions import RatingException
 from os import urandom, environ
 from enum import Enum
 from ratingSystem import RatingSystem
-from string import Template
 from message_provider import MessageProvider
 from dotenv import load_dotenv
+from flask_session import Session
 
 load_dotenv()
 
@@ -33,8 +32,11 @@ logging.basicConfig(
 
 
 app = Flask(__name__)
-
+app.config["SESSION_TYPE"] = "filesystem"
 app.secret_key = urandom(24)
+
+Session(app)
+
 
 url_for = lambda phone_number_id: f"https://graph.facebook.com/v20.0/{phone_number_id}/messages"
 headers = {
@@ -107,7 +109,7 @@ def handle_message(phone_number_id, message):
             post_message(phone_number_id, phone_number, "Eingabe nicht erkannt.")
 
     if phone_number and incoming_message:
-        if phone_number not in session:
+        if not session.get(phone_number):
             session[phone_number] = {"state": UserState.INITIAL.value}
             MessageProvider.send_inital_message(phone_number_id, phone_number)
         else:
@@ -115,6 +117,8 @@ def handle_message(phone_number_id, message):
             message = message_processor.handle_message(incoming_message, phone_number, session[phone_number]["state"])
 
             post_message(phone_number_id, phone_number, message)
+    else:
+        post_message(phone_number_id, phone_number, "Eingabe nicht erkannt.")
 
 
 def post_message(phone_number_id, phone_number, message):
