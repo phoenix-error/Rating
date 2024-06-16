@@ -85,7 +85,7 @@ def handle_message(phone_number_id, message):
     logger.info(f"Received message: {message} with phone number id: {phone_number_id}")
 
     phone_number = message["from"]
-    incoming_message = message["message"]["text"]
+    incoming_message = message["text"]["body"]
 
     if phone_number and incoming_message:
         if phone_number not in session:
