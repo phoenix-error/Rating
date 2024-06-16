@@ -56,27 +56,3 @@ class MessageProvider:
 
         response = requests.post(MessageProvider.url_for(phone_number_id), json=payload, headers=MessageProvider.headers)
         response.raise_for_status()
-
-    @staticmethod
-    def send_confirmation_message(phone_number_id, phone_number, message):
-        payload = {
-            "messaging_product": "whatsapp",
-            "recipient_type": "individual",
-            "to": phone_number,
-            "type": "interactive",
-            "interactive": {
-                "type": "button",
-                "header": "Ist das korrekt?",
-                "body": {"text": message},
-                "footer": {"text": "<FOOTER_TEXT>"},
-                "action": {
-                    "buttons": [
-                        {"type": "reply", "reply": {"id": "yes", "title": "Ja"}},
-                        {"type": "reply", "reply": {"id": "no", "title": "Nein"}},
-                    ]
-                },
-            },
-        }
-
-        response = requests.post(MessageProvider.url_for(phone_number_id), json=payload, headers=MessageProvider.headers)
-        response.raise_for_status()

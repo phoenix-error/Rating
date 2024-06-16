@@ -17,12 +17,9 @@ class UserState(Enum):
     INITIAL = "initial"
 
     ADD_PLAYER = "add_player"
-    ADD_PlAYER_CONFIRMATION = "add_player_confirmation"
 
     ADD_GAME = "add_game"
-    ADD_GAME_CONFIRMATION = "add_game_confirmation"
     DELETE_GAME = "delete_game"
-    DELETE_GAME_CONFIRMATION = "delete_game_confirmation"
 
 
 logger = logging.getLogger(__name__)
@@ -154,22 +151,13 @@ class MessageProcessor:
             return self.handle_initial_state(message, phone_number)
 
         elif current_state == UserState.ADD_PLAYER.value:
-            session[phone_number]["state"] = UserState.ADD_PlAYER_CONFIRMATION.value
-            return f"Du möchtest Spieler {message} hinzufügen?"
-        elif current_state == UserState.ADD_PlAYER_CONFIRMATION.value:
-            return self.handle_add_player_confirmation(message, phone_number)
+            self.handle_add_player(message, phone_number)
 
         elif current_state == UserState.ADD_GAME.value:
-            session[phone_number]["state"] = UserState.ADD_GAME_CONFIRMATION.value
-            return f"Du möchtest folgendes Spiel hinzufügen?\n{message}\n"
-        elif current_state == UserState.ADD_GAME_CONFIRMATION.value:
-            return self.handle_add_game_confirmation(message, phone_number)
+            self.handle_add_game(message, phone_number)
 
         elif current_state == UserState.DELETE_GAME.value:
-            session[phone_number]["state"] = UserState.DELETE_GAME_CONFIRMATION.value
-            return f"Du möchtest Spiel mit der ID: {message} löschen?"
-        elif current_state == UserState.DELETE_GAME_CONFIRMATION.value:
-            return self.handle_delete_game_confirmation(message, phone_number)
+            self.handle_delete_game(message, phone_number)
 
         else:
             del session[phone_number]
@@ -206,7 +194,7 @@ class MessageProcessor:
             del session[phone_number]
             return self.ratingSystem.rating_image()
 
-    def handle_add_player_confirmation(self, name, phone_number):
+    def handle_add_player(self, name, phone_number):
         del session[phone_number]
         try:
             self.ratingSystem.add_player(name, phone_number)
@@ -214,7 +202,7 @@ class MessageProcessor:
         except RatingException as e:
             return f"Fehler: {e}"
 
-    def handle_add_game_confirmation(self, message, phone_number):
+    def handle_add_game(self, message, phone_number):
         del session[phone_number]
         try:
             game_type = message.split("\n")[0]
@@ -232,7 +220,7 @@ class MessageProcessor:
         except Exception as e:
             return f"Fehler: {e}"
 
-    def handle_delete_game_confirmation(self, message, phone_number):
+    def handle_delete_game(self, message, phone_number):
         del session[phone_number]
         try:
             id = int(message)
