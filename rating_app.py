@@ -172,7 +172,7 @@ class MessageProcessor:
             return self.handle_delete_game_confirmation(message, phone_number)
 
         else:
-            session.pop(phone_number, None)
+            del session[phone_number]
             return "Eingabe nicht erkannt."
 
     def handle_initial_state(self, message, phone_number) -> str:
@@ -180,7 +180,7 @@ class MessageProcessor:
             session[phone_number]["state"] = UserState.ADD_PLAYER.value
             return "Bitte gib deinen Namen ein."
         elif message == "Spieler löschen":
-            session.pop(phone_number, None)
+            del session[phone_number]
             try:
                 name = self.ratingSystem.delete_player(phone_number)
                 return f"Spieler {name} erfolgreich gelöscht."
@@ -206,7 +206,7 @@ class MessageProcessor:
             return self.ratingSystem.rating_image()
 
     def handle_add_player_confirmation(self, name, phone_number):
-        session.pop(phone_number, None)
+        del session[phone_number]
         try:
             self.ratingSystem.add_player(name, phone_number)
             return f"Spieler {name} wurde hinzugefügt."
@@ -214,7 +214,7 @@ class MessageProcessor:
             return f"Fehler: {e}"
 
     def handle_add_game_confirmation(self, message, phone_number):
-        session.pop(phone_number, None)
+        del session[phone_number]
         try:
             game_type = message.split("\n")[0]
             names = message.split("\n")[1]
@@ -232,7 +232,7 @@ class MessageProcessor:
             return f"Fehler: {e}"
 
     def handle_delete_game_confirmation(self, message, phone_number):
-        session.pop(phone_number, None)
+        del session[phone_number]
         try:
             id = int(message)
             self.ratingSystem.delete_game(id, phone_number)
