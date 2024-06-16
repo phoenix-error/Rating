@@ -84,9 +84,12 @@ class RatingSystem:
             player = self.session.query(Player).filter_by(phone_number=phone_number).one()
             self.logger.debug(f"Spieler {player.name} in der Datenbank gefunden.")
 
+            name = player.name
+
             self.session.delete(player)
             self.session.commit()
             self.logger.info(f"Spielereintrag für {player.name} aus der Datenbank gelöscht.")
+            return name
         except NoResultFound:
             raise RatingException(f"Du wurdest nicht in der Datenbank gefunden.\nWende dich an den Administrator.")
 

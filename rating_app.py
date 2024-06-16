@@ -120,6 +120,7 @@ def handle_message(phone_number_id, message):
 
             post_message(phone_number_id, phone_number, message)
     else:
+        del session[phone_number]
         post_message(phone_number_id, phone_number, "Eingabe nicht erkannt.")
 
     logger.info(f"Final Session: {session.get(phone_number)}")
@@ -181,6 +182,7 @@ class MessageProcessor:
 
         # Rating
         elif message == "Rating hinzufügen":
+            del session[phone_number]
             try:
                 self.ratingSystem.add_player_to_rating(phone_number)
                 return f"Du wurdest zu Rating hinzugefügt."
