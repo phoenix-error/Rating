@@ -80,14 +80,15 @@ def whatsapp_message():
             change = entry[0].get("changes")[0]
             if change and change.get("value"):
                 value = change.get("value")
-                if value["metadata"]["phone_number_id"] and value["messages"][0]:
-                    phone_number_id = value["metadata"]["phone_number_id"]
-                    message = value["messages"][0]
-                    try:
-                        handle_message(phone_number_id, message)
-                    except Exception as e:
-                        logger.exception("Error while handling message. {e}")
-                        return "Error", 200
+                if value.get("metadata") and value.get("messages"):
+                    if value["metadata"]["phone_number_id"] and value["messages"][0]:
+                        phone_number_id = value["metadata"]["phone_number_id"]
+                        message = value["messages"][0]
+                        try:
+                            handle_message(phone_number_id, message)
+                        except Exception as e:
+                            logger.exception("Error while handling message. {e}")
+                            return "Error", 200
 
     return "OK", 200
 
