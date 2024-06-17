@@ -84,7 +84,7 @@ def whatsapp_message():
                         try:
                             handle_message(phone_number_id, message)
                         except Exception as e:
-                            logger.exception("Error while handling message. {e}")
+                            logger.exception(f"Error while handling message. {e}")
                             return "Error", 200
 
     return "OK", 200
