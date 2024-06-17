@@ -11,3 +11,4 @@ supabase
 waitress
 python-dotenv
 fuzzywuzzy
+python-Levenshtein

@@ -8,7 +8,6 @@ from sqlalchemy import create_engine, func
 from sqlalchemy.orm import sessionmaker
 from models import Base, Player, Rating, Game
 from constants import (
-    date_format,
     BASIS_POINTS,
     RATING_MULTIPLIER,
     RATING_FACTOR,
@@ -119,6 +118,22 @@ class RatingSystem:
         self.session.commit()
         self.logger.info(f"Spieler {player.name} zum Rating hinzugefügt.")
 
+    def delete_player_from_rating(self, phone_number: str):
+        player = self.session.query(Player).filter_by(phone_number=phone_number).first()
+
+        if not player:
+            raise PlayerNotFoundException(f"mit Handynummer: {phone_number}")
+
+        existing_rating = self.session.query(Rating).filter_by(player=player.id).first()
+
+        if not existing_rating:
+            self.logger.info(f"Spieler {player.name} nicht im Rating.")
+            raise PlayerNotInRatingException(player.name)
+
+        self.session.query(Rating).filter_by(player=player.id).delete()
+        self.session.commit()
+        self.logger.info(f"Spieler {player.name} aus dem Rating gelöscht.")
+
     def add_games(self, playerA, playerB, scores, game_type, phone_number) -> list[str]:
         ids = []
         for score1, score2 in scores:
@@ -199,7 +214,7 @@ class RatingSystem:
         assert playerA_rating.rating
         assert playerB_rating.rating
         # Calculate the change in rating
-        calc_element = 1 / (1 + pow(10, ((playerA_rating.rating - playerB_rating.rating) / RATING_FACTOR)))
+        calc_element = 1 / (1 + pow(10, ((playerB_rating.rating - playerA_rating.rating) / RATING_FACTOR)))
 
         if game_type == GameType.NORMAL.value:
             rating_change = K_FACTOR * (scoreA - calc_element * (scoreA + scoreB))

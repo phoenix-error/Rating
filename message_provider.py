@@ -29,24 +29,35 @@ class MessageProvider:
                     "button": "Zeige Befehle",
                     "sections": [
                         {
-                            "title": "Spieler",
-                            "rows": [
-                                {"id": "add_player", "title": "Spieler hinzufügen", "description": ""},
-                                {"id": "delete_player", "title": "Spieler löschen", "description": ""},
-                            ],
-                        },
-                        {
                             "title": "Rating",
                             "rows": [
-                                {"id": "add_rating", "title": "Rating hinzufügen", "description": ""},
-                                {"id": "view_rating", "title": "Rating anschauen", "description": ""},
+                                {
+                                    "id": "view_rating",
+                                    "title": "Rating anschauen",
+                                    "description": "Schickt dir ein Bild mit dem aktuellen Rating",
+                                },
                             ],
                         },
                         {
                             "title": "Spiel",
                             "rows": [
-                                {"id": "add_game", "title": "Spiel hinzufügen", "description": ""},
-                                {"id": "delete_game", "title": "Spiel löschen", "description": ""},
+                                {"id": "add_game", "title": "Spiel hinzufügen", "description": "Fügt ein Spiel hinzu"},
+                                {"id": "delete_game", "title": "Spiel löschen", "description": "Löscht ein Spiel"},
+                            ],
+                        },
+                        {
+                            "title": "Spieler",
+                            "rows": [
+                                {
+                                    "id": "add_player",
+                                    "title": "Spieler hinzufügen",
+                                    "description": "Fügt einen Spieler hinzu und fügt ihn dem Rating hinzu",
+                                },
+                                {
+                                    "id": "delete_player",
+                                    "title": "Spieler löschen",
+                                    "description": "Löscht einen Spieler aus dem Rating und dem System",
+                                },
                             ],
                         },
                     ],

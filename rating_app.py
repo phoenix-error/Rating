@@ -31,15 +31,7 @@ logging.basicConfig(
 
 
 app = Flask(__name__)
-
 session = dict()
-
-
-url_for = lambda phone_number_id: f"https://graph.facebook.com/v20.0/{phone_number_id}/messages"
-headers = {
-    "Authorization": "Bearer " + environ["WHATSAPP_TOKEN"],
-    "Content-Type": "application/json",
-}
 
 
 @app.route("/")
@@ -104,10 +96,10 @@ def handle_message(phone_number_id, message):
                 incoming_message = message["interactive"]["list_reply"]["title"]
             else:
                 logger.info(f"Interactive message type not supported: {message}")
-                post_message(phone_number_id, phone_number, "Eingabe nicht erkannt.")
+                MessageProvider.send_message(phone_number_id, phone_number, "Eingabe nicht erkannt.")
         case _:
             logger.info(f"Message type not supported: {message}")
-            post_message(phone_number_id, phone_number, "Eingabe nicht erkannt.")
+            MessageProvider.send_message(phone_number_id, phone_number, "Eingabe nicht erkannt.")
 
     if phone_number and incoming_message:
         if not session.get(phone_number):
@@ -122,19 +114,6 @@ def handle_message(phone_number_id, message):
         MessageProvider.send_message(phone_number_id, phone_number, "Eingabe nicht erkannt.")
 
     logger.info(f"Final Session: {session.get(phone_number)}")
-
-
-def post_message(phone_number_id, phone_number, message):
-    payload = {
-        "messaging_product": "whatsapp",
-        "to": phone_number,
-        "type": "text",
-        "text": {"body": message},
-    }
-
-    response = requests.post(url_for(phone_number_id), json=payload, headers=headers)
-    logger.info(f"Sending response: {response.text}")
-    response.raise_for_status()
 
 
 class MessageProcessor:
@@ -183,15 +162,6 @@ class MessageProcessor:
                 MessageProvider.send_message(
                     self.phone_number_id, self.phone_number, "Bitte geben Sie die ID des Spiels ein, das Sie löschen möchten."
                 )
-            case "Rating hinzufügen":
-                del session[self.phone_number]
-                try:
-                    self.ratingSystem.add_player_to_rating(self.phone_number)
-                    MessageProvider.send_message(self.phone_number_id, self.phone_number, "Du wurdest zu Rating hinzugefügt.")
-                except PlayerNotFoundException as e:
-                    MessageProvider.send_message(self.phone_number_id, self.phone_number, f"Fehler: {e}")
-                except PlayerAlreadyInRatingException as e:
-                    MessageProvider.send_message(self.phone_number_id, self.phone_number, f"Fehler: {e}")
             case "Rating anschauen":
                 del session[self.phone_number]
                 try:
@@ -208,8 +178,13 @@ class MessageProcessor:
         del session[self.phone_number]
         try:
             self.ratingSystem.add_player(name, self.phone_number)
+            self.ratingSystem.add_player_to_rating(self.phone_number)
             MessageProvider.send_message(self.phone_number_id, self.phone_number, f"Spieler {name} erfolgreich hinzugefügt.")
         except PlayerAlreadyExistsException as e:
+            MessageProvider.send_message(self.phone_number_id, self.phone_number, f"Fehler: {e}")
+        except PlayerNotFoundException as e:
+            MessageProvider.send_message(self.phone_number_id, self.phone_number, f"Fehler: {e}")
+        except PlayerAlreadyInRatingException as e:
             MessageProvider.send_message(self.phone_number_id, self.phone_number, f"Fehler: {e}")
 
     def handle_add_game(self, message):
