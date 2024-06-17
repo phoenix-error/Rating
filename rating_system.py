@@ -6,7 +6,6 @@ import pandas as pd
 import dataframe_image as dfi
 from sqlalchemy import create_engine, func
 from sqlalchemy.orm import sessionmaker
-from difflib import get_close_matches
 from models import Base, Player, Rating, Game
 from constants import (
     date_format,
@@ -23,6 +22,7 @@ from os import environ
 from sqlalchemy.exc import NoResultFound
 from supabase import create_client, Client
 from dotenv import load_dotenv
+from fuzzywuzzy import fuzz, process
 
 
 class RatingSystem:
@@ -55,8 +55,10 @@ class RatingSystem:
 
     def find_closest_name(self, name) -> str:
         self.logger.info(f"Suche nach Namen {name} in der Datenbank.")
-        matches = get_close_matches(name, self.get_names(), n=1, cutoff=0.3)
+
+        matches = process.extractOne(name, self.get_names(), score_cutoff=75, scorer=fuzz.token_sort_ratio)
         if matches:
+            self.logger.info(matches)
             return matches[0]
         else:
             self.logger.info(f"Name {name} konnte nicht in der Datenbank gefunden werden.")
@@ -246,51 +248,68 @@ class RatingSystem:
             https://medium.com/@romina.elena.mendez/transform-your-pandas-dataframes-styles-colors-and-emojis-bf938d6e98a2
             https://towardsdatascience.com/make-your-tables-look-glorious-2a5ddbfcc0e5
         """
-        try:
-            # Query
-            query = self.session.query(
-                func.row_number().over(order_by=Rating.rating.desc()).label("Platz"),
-                Player.name.label("Namen"),
-                Rating.rating.label("Rating"),
-                Rating.winning_quote.label("Gewinnquote (%)"),
-                Rating.games_won.label("Spiele (G)"),
-                Rating.games_lost.label("Spiele (V)"),
-                Rating.last_change.label("Letze Änderung"),
-            ).join(Rating, Player.id == Rating.player)
 
-            result = query.all()
+        # Query
+        query = self.session.query(
+            func.row_number().over(order_by=Rating.rating.desc()).label("Platz"),
+            Player.name.label("Namen"),
+            Rating.rating.label("Rating"),
+            Rating.winning_quote.label("Gewinnquote (%)"),
+            Rating.games_won.label("Spiele (G)"),
+            Rating.games_lost.label("Spiele (V)"),
+            Rating.last_change.label("Letze Änderung"),
+        ).join(Rating, Player.id == Rating.player)
 
-            # Dataframe, styling and export
-            data = pd.DataFrame(result)
-            data_styled = (
-                data.style.format({"Letze Änderung": "{:%d %b, %Y}", "Rating": "{:.2f}", "Gewinnquote (%)": "{:.2%}"})
-                .set_caption("BV-Q-Club Rating Tabelle")
-                .set_properties(**{"text-align": "center"})
-                .set_properties(**{"background-color": "#FFCFC9", "color": "black"}, subset=["Spiele (V)"])
-                .set_properties(**{"background-color": "#C9FFC9", "color": "black"}, subset=["Spiele (G)"])
-                .set_properties(**{"background-color": "#BEEAE5", "color": "black"}, subset=["Rating"])
-                .set_properties(**{"background-color": "#FFB347", "color": "black"}, subset=["Gewinnquote (%)"])
-                .hide(axis="index")
-            )
+        result = query.all()
 
-            dfi.export(data_styled, "./rating.png", table_conversion="matplotlib")
+        # Dataframe, styling and export
+        data = pd.DataFrame(result)
+        data_styled = (
+            data.style.format({"Letze Änderung": "{:%d %b, %Y}", "Rating": "{:.2f}", "Gewinnquote (%)": "{:.2%}"})
+            .set_caption("BV-Q-Club Rating Tabelle")
+            .set_properties(**{"text-align": "center"})
+            .set_properties(**{"background-color": "#FFCFC9", "color": "black"}, subset=["Spiele (V)"])
+            .set_properties(**{"background-color": "#C9FFC9", "color": "black"}, subset=["Spiele (G)"])
+            .set_properties(**{"background-color": "#BEEAE5", "color": "black"}, subset=["Rating"])
+            .set_properties(**{"background-color": "#FFB347", "color": "black"}, subset=["Gewinnquote (%)"])
+            .hide(axis="index")
+        )
 
-            # Upload to storage
-            storage = self.supabase.storage
-            buckets = storage.list_buckets()
-            if not buckets:
-                storage.create_bucket("rating", options={"public": True})
-                self.logger.info("Ein neuer Bucket für das Rating-Tabellenbild wurde erstellt.")
+        dfi.export(data_styled, "./rating.png", table_conversion="matplotlib")
 
-            ratingBucket = storage.from_("rating")
+        # Upload to storage
+        storage = self.supabase.storage
+        buckets = storage.list_buckets()
+        if not buckets:
+            storage.create_bucket("rating", options={"public": True})
+            self.logger.info("Ein neuer Bucket für das Rating-Tabellenbild wurde erstellt.")
 
-            with open("./rating.png", "rb") as f:
-                storage.empty_bucket("rating")
-                ratingBucket.upload(path="./rating.png", file=f, file_options={"content-type": "image/png"})
+        ratingBucket = storage.from_("rating")
 
-                res = ratingBucket.get_public_url("rating.png")
-                self.logger.info("Das Rating-Tabellenbild wurde exportiert.")
-                return res
-        except Exception as e:
-            self.logger.error(f"Fehler beim Erstellen des Ratings: {e}")
-            return "Fehler beim Erstellen des Ratings. Bitte versuche es später erneut."
+        with open("./rating.png", "rb") as f:
+            storage.empty_bucket("rating")
+            ratingBucket.upload(path="./rating.png", file=f, file_options={"content-type": "image/png"})
+
+            res = ratingBucket.get_public_url("rating.png")
+            self.logger.info("Das Rating-Tabellenbild wurde exportiert.")
+            return res
+
+    def adjust_rating(self, name, rating, games_won, games_lost):
+        name = self.find_closest_name(name)
+        player = self.session.query(Player).filter_by(name=name).first()
+        if not player:
+            raise PlayerNotFoundException(name)
+
+        player_rating = self.session.query(Rating).filter_by(player=player.id).first()
+        if not player_rating:
+            raise PlayerNotInRatingException(name)
+
+        player_rating.rating = rating
+        player_rating.games_won = games_won
+        player_rating.games_lost = games_lost
+        if games_won + games_lost != 0:
+            player_rating.winning_quote = games_won / (games_won + games_lost)
+        player_rating.last_change = datetime.now()
+
+        self.session.commit()
+        self.logger.info(f"Rating von {name} wurde angepasst auf {rating}.")

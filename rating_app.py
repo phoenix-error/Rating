@@ -6,7 +6,7 @@ from waitress import serve
 from exceptions import *
 from os import urandom, environ
 from enum import Enum
-from ratingSystem import RatingSystem
+from rating_system import RatingSystem
 from message_provider import MessageProvider
 from dotenv import load_dotenv
 
@@ -115,13 +115,11 @@ def handle_message(phone_number_id, message):
             logger.info(f"Sending initial message to {phone_number}")
             MessageProvider.send_inital_message(phone_number_id, phone_number)
         else:
-            message_processor = MessageProcessor()
-            message = message_processor.handle_message(incoming_message, phone_number, session[phone_number]["state"])
-
-            post_message(phone_number_id, phone_number, message)
+            message_processor = MessageProcessor(phone_number_id, phone_number)
+            message_processor.handle_message(incoming_message, session[phone_number]["state"])
     else:
         del session[phone_number]
-        post_message(phone_number_id, phone_number, "Eingabe nicht erkannt.")
+        MessageProvider.send_message(phone_number_id, phone_number, "Eingabe nicht erkannt.")
 
     logger.info(f"Final Session: {session.get(phone_number)}")
 
@@ -140,71 +138,82 @@ def post_message(phone_number_id, phone_number, message):
 
 
 class MessageProcessor:
-    def __init__(self):
+    def __init__(self, phone_number_id, phone_number):
         self.ratingSystem = RatingSystem()
+        self.phone_number_id = phone_number_id
+        self.phone_number = phone_number
 
-    def handle_message(self, message: str, phone_number: str, current_state: str) -> str:
-        if current_state == UserState.INITIAL.value:
-            return self.handle_initial_state(message, phone_number)
+    def handle_message(self, message: str, current_state: str):
+        match current_state:
+            case UserState.INITIAL.value:
+                return self.handle_initial_state(message)
+            case UserState.ADD_PLAYER.value:
+                return self.handle_add_player(name=message)
+            case UserState.ADD_GAME.value:
+                return self.handle_add_game(message)
+            case UserState.DELETE_GAME.value:
+                return self.handle_delete_game(id=message)
+            case _:
+                del session[self.phone_number]
+                MessageProvider.send_message(self.phone_number_id, self.phone_number, "Eingabe nicht erkannt.")
 
-        elif current_state == UserState.ADD_PLAYER.value:
-            return self.handle_add_player(message, phone_number)
+    def handle_initial_state(self, message):
+        match message:
+            case "Spieler hinzufügen":
+                session[self.phone_number]["state"] = UserState.ADD_PLAYER.value
+                MessageProvider.send_message(
+                    self.phone_number_id, self.phone_number, "Bitte geben Sie den Namen des Spielers ein."
+                )
+            case "Spieler löschen":
+                del session[self.phone_number]
+                try:
+                    name = self.ratingSystem.delete_player(self.phone_number)
+                    MessageProvider.send_message(self.phone_number_id, self.phone_number, f"Spieler {name} erfolgreich gelöscht.")
+                except PlayerNotFoundException as e:
+                    MessageProvider.send_message(self.phone_number_id, self.phone_number, f"Fehler: {e}")
+            case "Spiel hinzufügen":
+                session[self.phone_number]["state"] = UserState.ADD_GAME.value
+                MessageProvider.send_message(
+                    self.phone_number_id,
+                    self.phone_number,
+                    "Bitte geben Sie ein was Sie machen möchten:\nSpieltyp\nSpieler A:Spieler B\nScoreA:ScoreB\n...",
+                )
+            case "Spiel löschen":
+                session[self.phone_number]["state"] = UserState.DELETE_GAME.value
+                MessageProvider.send_message(
+                    self.phone_number_id, self.phone_number, "Bitte geben Sie die ID des Spiels ein, das Sie löschen möchten."
+                )
+            case "Rating hinzufügen":
+                del session[self.phone_number]
+                try:
+                    self.ratingSystem.add_player_to_rating(self.phone_number)
+                    MessageProvider.send_message(self.phone_number_id, self.phone_number, "Du wurdest zu Rating hinzugefügt.")
+                except PlayerNotFoundException as e:
+                    MessageProvider.send_message(self.phone_number_id, self.phone_number, f"Fehler: {e}")
+                except PlayerAlreadyInRatingException as e:
+                    MessageProvider.send_message(self.phone_number_id, self.phone_number, f"Fehler: {e}")
+            case "Rating anschauen":
+                del session[self.phone_number]
+                try:
+                    url = self.ratingSystem.rating_image()
+                    MessageProvider.send_image(self.phone_number_id, self.phone_number, url)
+                except:
+                    MessageProvider.send_message(
+                        self.phone_number_id,
+                        self.phone_number,
+                        f"Rating konnte nicht aktualisiert werden. Wende dich an den Admin.",
+                    )
 
-        elif current_state == UserState.ADD_GAME.value:
-            return self.handle_add_game(message, phone_number)
-
-        elif current_state == UserState.DELETE_GAME.value:
-            return self.handle_delete_game(message, phone_number)
-
-        else:
-            del session[phone_number]
-            return "Eingabe nicht erkannt."
-
-    def handle_initial_state(self, message, phone_number) -> str:
-        if message == "Spieler hinzufügen":
-            session[phone_number]["state"] = UserState.ADD_PLAYER.value
-            return "Bitte gib deinen Namen ein."
-        elif message == "Spieler löschen":
-            del session[phone_number]
-            try:
-                name = self.ratingSystem.delete_player(phone_number)
-                return f"Spieler {name} erfolgreich gelöscht."
-            except PlayerNotFoundException as e:
-                return f"Fehler:\n{e}"
-
-        # Spiel
-        elif message == "Spiel hinzufügen":
-            session[phone_number]["state"] = UserState.ADD_GAME.value
-            return "Bitte geben Sie ein was Sie machen möchten:\nSpieltyp\nSpieler A:Spieler B\nScoreA:ScoreB\n..."
-        elif message == "Spiel löschen":
-            session[phone_number]["state"] = UserState.DELETE_GAME.value
-            return "Bitte geben Sie die ID des Spiels ein, das Sie löschen möchten."
-
-        # Rating
-        elif message == "Rating hinzufügen":
-            del session[phone_number]
-            try:
-                self.ratingSystem.add_player_to_rating(phone_number)
-                return f"Du wurdest zu Rating hinzugefügt."
-            except PlayerNotFoundException as e:
-                return f"Fehler:\n{e}"
-            except PlayerAlreadyInRatingException as e:
-                return f"Fehler:\n{e}"
-
-        elif message == "Rating anschauen":
-            del session[phone_number]
-            return self.ratingSystem.rating_image()
-
-    def handle_add_player(self, name, phone_number):
-        del session[phone_number]
+    def handle_add_player(self, name):
+        del session[self.phone_number]
         try:
-            self.ratingSystem.add_player(name, phone_number)
-            return f"Spieler {name} wurde hinzugefügt."
+            self.ratingSystem.add_player(name, self.phone_number)
+            MessageProvider.send_message(self.phone_number_id, self.phone_number, f"Spieler {name} erfolgreich hinzugefügt.")
         except PlayerAlreadyExistsException as e:
-            return f"Fehler:\n{e}"
+            MessageProvider.send_message(self.phone_number_id, self.phone_number, f"Fehler: {e}")
 
-    def handle_add_game(self, message, phone_number):
-        del session[phone_number]
+    def handle_add_game(self, message):
+        del session[self.phone_number]
         try:
             game_type = message.split("\n")[0]
             names = message.split("\n")[1]
@@ -213,33 +222,46 @@ class MessageProcessor:
 
             logger.info(f"Identified matches: {game_type}, {names}, {scores}")
 
-            ids = self.ratingSystem.add_games(nameA, nameB, scores, game_type, phone_number)
+            ids = self.ratingSystem.add_games(nameA, nameB, scores, game_type, self.phone_number)
 
             if not ids:
-                return "Keine Spiele hinzugefügt."
+                MessageProvider.send_message(self.phone_number_id, self.phone_number, "Keine Spiele hinzugefügt.")
             elif len(ids) == 1:
-                return "Spiel hinzugefügt. ID: " + str(ids[0])
+                MessageProvider.send_message(self.phone_number_id, self.phone_number, f"Spiel hinzugefügt. ID: {ids[0]}")
             else:
-                return "Spiele hinzugefügt. IDs: " + ", ".join(map(str, ids))
-        except PlayerNotFoundException as e:
-            return f"Fehler:\n{e}"
-        except PlayerNotInRatingException as e:
-            return f"Fehler:\n{e}"
-        except PlayerNotInGameException as e:
-            return f"Fehler:\n{e}"
-        except GameTypeNotSupportedException as e:
-            return f"Fehler:\n{e}"
+                MessageProvider.send_message(
+                    self.phone_number_id, self.phone_number, f"Spiele hinzugefügt. IDs: {', '.join(map(str, ids))}"
+                )
 
-    def handle_delete_game(self, message, phone_number):
-        del session[phone_number]
-        try:
-            id = int(message)
-            self.ratingSystem.delete_game(id, phone_number)
-            return "Spiel wurde gelöscht."
-        except GameNotFoundException as e:
-            return f"Fehler:\n{e}"
+            try:
+                url = self.ratingSystem.rating_image()
+                MessageProvider.send_image(self.phone_number_id, self.phone_number, url)
+            except:
+                MessageProvider.send_message(
+                    self.phone_number_id, self.phone_number, f"Rating konnte nicht aktualisiert werden. Wende dich an den Admin."
+                )
+        except PlayerNotFoundException as e:
+            MessageProvider.send_message(self.phone_number_id, self.phone_number, f"Fehler: {e}")
+        except PlayerNotInRatingException as e:
+            MessageProvider.send_message(self.phone_number_id, self.phone_number, f"Fehler: {e}")
         except PlayerNotInGameException as e:
-            return f"Fehler:\n{e}"
+            MessageProvider.send_message(self.phone_number_id, self.phone_number, f"Fehler: {e}")
+        except GameTypeNotSupportedException as e:
+            MessageProvider.send_message(self.phone_number_id, self.phone_number, f"Fehler: {e}")
+
+    def handle_delete_game(
+        self,
+        id,
+    ):
+        del session[self.phone_number]
+        try:
+            id = int(id)
+            self.ratingSystem.delete_game(id, self.phone_number)
+            MessageProvider.send_message(self.phone_number_id, self.phone_number, f"Spiel {id} erfolgreich gelöscht.")
+        except GameNotFoundException as e:
+            MessageProvider.send_message(self.phone_number_id, self.phone_number, f"Fehler: {e}")
+        except PlayerNotInGameException as e:
+            MessageProvider.send_message(self.phone_number_id, self.phone_number, f"Fehler: {e}")
 
 
 if __name__ == "__main__":

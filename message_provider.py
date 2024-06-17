@@ -64,3 +64,28 @@ class MessageProvider:
 
         response = requests.post(MessageProvider.url_for(phone_number_id), json=payload, headers=MessageProvider.headers)
         response.raise_for_status()
+
+    @staticmethod
+    def send_image(phone_number_id, phone_number, url):
+        payload = {
+            "messaging_product": "whatsapp",
+            "recipient_type": "individual",
+            "to": phone_number,
+            "type": "image",
+            "image": {"link": url},
+        }
+
+        response = requests.post(MessageProvider.url_for(phone_number_id), json=payload, headers=MessageProvider.headers)
+        response.raise_for_status()
+
+    @staticmethod
+    def send_message(phone_number_id, phone_number, message):
+        payload = {
+            "messaging_product": "whatsapp",
+            "to": phone_number,
+            "type": "text",
+            "text": {"body": message},
+        }
+
+        response = requests.post(MessageProvider.url_for(phone_number_id), json=payload, headers=MessageProvider.headers)
+        response.raise_for_status()
