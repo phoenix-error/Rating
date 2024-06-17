@@ -247,7 +247,7 @@ class RatingSystem:
                 func.row_number().over(order_by=Rating.rating.desc()).label("Platz"),
                 Player.name.label("Namen"),
                 Rating.rating.label("Rating"),
-                (Rating.winning_quote * 100).label("Gewinnquote (%)"),
+                Rating.winning_quote.label("Gewinnquote (%)"),
                 Rating.games_won.label("Spiele (G)"),
                 Rating.games_lost.label("Spiele (V)"),
                 Rating.last_change.label("Letze Änderung"),
