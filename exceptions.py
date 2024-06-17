@@ -1,7 +1,7 @@
 class PlayerNotFoundException(Exception):
     """Exception raised for errors in the Rating System."""
 
-    def __init__(self, location:str, *args:str):
+    def __init__(self, *args:str):
         super().__init__(f"Spieler {", ".join(list(args))} nicht in der Datenbank gefunden.")
 
 
