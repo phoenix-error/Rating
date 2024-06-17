@@ -260,22 +260,15 @@ class RatingSystem:
         return rating_change
 
     def rating_image(self):
-        row_number = func.row_number().over().label("Platz")
-        rounded_rating = func.round(Rating.rating, 2).label("Rating")
-        winning_quote = func.round(Rating.winning_quote * 100, 2).label("Sieger Quote")
-        query = (
-            self.session.query(
-                row_number,
-                Player.name.label("Namen"),
-                rounded_rating,
-                winning_quote,
-                Rating.games_won.label("Spiele (G)"),
-                Rating.games_lost.label("Spiele (V)"),
-                Rating.last_change.label("Letze Änderung"),
-            )
-            .join(Rating, Player.id == Rating.player)
-            .order_by(Player.id)
-        )
+        query = self.session.query(
+            func.row_number().over(order_by=Rating.rating.desc()).label("Platz"),
+            Player.name.label("Namen"),
+            func.round(Rating.rating, 2).label("Rating"),
+            (Rating.winning_quote * 100).label("Gewinnquote (%)"),
+            Rating.games_won.label("Spiele (G)"),
+            Rating.games_lost.label("Spiele (V)"),
+            Rating.last_change.label("Letze Änderung"),
+        ).join(Rating, Player.id == Rating.player)
 
         result = query.all()
 
