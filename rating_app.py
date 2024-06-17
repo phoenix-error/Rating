@@ -3,7 +3,7 @@ from flask import Flask, request, jsonify
 import re
 import requests
 from waitress import serve
-from exceptions import RatingException
+from exceptions import *
 from os import urandom, environ
 from enum import Enum
 from ratingSystem import RatingSystem
@@ -169,8 +169,8 @@ class MessageProcessor:
             try:
                 name = self.ratingSystem.delete_player(phone_number)
                 return f"Spieler {name} erfolgreich gelöscht."
-            except RatingException as e:
-                return f"Fehler: {e}"
+            except PlayerNotFoundException as e:
+                return f"Fehler:\n{e}"
 
         # Spiel
         elif message == "Spiel hinzufügen":
@@ -186,8 +186,11 @@ class MessageProcessor:
             try:
                 self.ratingSystem.add_player_to_rating(phone_number)
                 return f"Du wurdest zu Rating hinzugefügt."
-            except RatingException as e:
-                return f"Fehler: {e}"
+            except PlayerNotFoundException as e:
+                return f"Fehler:\n{e}"
+            except PlayerAlreadyInRatingException as e:
+                return f"Fehler:\n{e}"
+
         elif message == "Rating anschauen":
             del session[phone_number]
             return self.ratingSystem.rating_image()
@@ -197,8 +200,8 @@ class MessageProcessor:
         try:
             self.ratingSystem.add_player(name, phone_number)
             return f"Spieler {name} wurde hinzugefügt."
-        except RatingException as e:
-            return f"Fehler: {e}"
+        except PlayerAlreadyExistsException as e:
+            return f"Fehler:\n{e}"
 
     def handle_add_game(self, message, phone_number):
         del session[phone_number]
@@ -218,10 +221,14 @@ class MessageProcessor:
                 return "Spiel hinzugefügt. ID: " + str(ids[0])
             else:
                 return "Spiele hinzugefügt. IDs: " + ", ".join(map(str, ids))
-        except RatingException as e:
-            return f"Fehler: {e}"
-        except Exception as e:
-            return f"Fehler: {e}"
+        except PlayerNotFoundException as e:
+            return f"Fehler:\n{e}"
+        except PlayerNotInRatingException as e:
+            return f"Fehler:\n{e}"
+        except PlayerNotInGameException as e:
+            return f"Fehler:\n{e}"
+        except GameTypeNotSupportedException as e:
+            return f"Fehler:\n{e}"
 
     def handle_delete_game(self, message, phone_number):
         del session[phone_number]
@@ -229,10 +236,10 @@ class MessageProcessor:
             id = int(message)
             self.ratingSystem.delete_game(id, phone_number)
             return "Spiel wurde gelöscht."
-        except RatingException as e:
-            return f"Fehler: {e}"
-        except Exception as e:
-            return f"Fehler: {e}"
+        except GameNotFoundException as e:
+            return f"Fehler:\n{e}"
+        except PlayerNotInGameException as e:
+            return f"Fehler:\n{e}"
 
 
 if __name__ == "__main__":
