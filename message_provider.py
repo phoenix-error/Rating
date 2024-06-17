@@ -56,3 +56,11 @@ class MessageProvider:
 
         response = requests.post(MessageProvider.url_for(phone_number_id), json=payload, headers=MessageProvider.headers)
         response.raise_for_status()
+
+    @staticmethod
+    def send_game_flow_message(phone_number_id, phone_number):
+        # TODO: Implement
+        payload = {}
+
+        response = requests.post(MessageProvider.url_for(phone_number_id), json=payload, headers=MessageProvider.headers)
+        response.raise_for_status()

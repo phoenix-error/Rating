@@ -263,8 +263,8 @@ class RatingSystem:
                 .set_properties(**{"background-color": "#FFCFC9", "color": "black"}, subset=["Spiele (V)"])
                 .set_properties(**{"background-color": "#C9FFC9", "color": "black"}, subset=["Spiele (G)"])
                 .set_properties(**{"background-color": "#BEEAE5", "color": "black"}, subset=["Rating"])
-                .set_properties(**{"background-color": "", "color": "black"}, subset=["Gewinnquote (%)"])
-                .hide_index()
+                .set_properties(**{"background-color": "#FFB347", "color": "black"}, subset=["Gewinnquote (%)"])
+                .hide(axis="index")
             )
 
             dfi.export(data_styled, "./rating.png", table_conversion="matplotlib")
