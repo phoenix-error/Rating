@@ -257,10 +257,17 @@ class RatingSystem:
 
             # Dataframe, styling and export
             data = pd.DataFrame(result)
-            data["Rating"] = data["Rating"].round(2)
-            data["Gewinnquote (%)"] = data["Gewinnquote (%)"].round(2)
+            data_styled = (
+                data.style.format({"Letze Änderung": "{:%d %b, %Y}", "Rating": "{:.2f}", "Gewinnquote (%)": "{:.2%}"})
+                .set_caption("BV-Q-Club Rating Tabelle")
+                .set_properties(**{"background-color": "#FFCFC9", "color": "black"}, subset=["Spiele (V)"])
+                .set_properties(**{"background-color": "#C9FFC9", "color": "black"}, subset=["Spiele (G)"])
+                .set_properties(**{"background-color": "#BEEAE5", "color": "black"}, subset=["Rating"])
+                .set_properties(**{"background-color": "", "color": "black"}, subset=["Gewinnquote (%)"])
+                .hide_index()
+            )
 
-            dfi.export(data.style.hide(axis="index"), "./rating.png", table_conversion="matplotlib")
+            dfi.export(data_styled, "./rating.png", table_conversion="matplotlib")
 
             # Upload to storage
             storage = self.supabase.storage
