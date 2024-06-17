@@ -212,7 +212,12 @@ class MessageProcessor:
 
             ids = self.ratingSystem.add_games(nameA, nameB, scores, game_type, phone_number)
 
-            return "Spiele hinzugefügt. IDs: " + ", ".join(map(str, ids))
+            if not ids:
+                return "Keine Spiele hinzugefügt."
+            elif len(ids) == 1:
+                return "Spiel hinzugefügt. ID: " + str(ids[0])
+            else:
+                return "Spiele hinzugefügt. IDs: " + ", ".join(map(str, ids))
         except RatingException as e:
             return f"Fehler: {e}"
         except Exception as e:
