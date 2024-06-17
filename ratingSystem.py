@@ -241,6 +241,11 @@ class RatingSystem:
         return rating_change
 
     def rating_image(self):
+        """Creates a table with the current ratings and exports it as an image.
+        See URLS:
+            https://medium.com/@romina.elena.mendez/transform-your-pandas-dataframes-styles-colors-and-emojis-bf938d6e98a2
+            https://towardsdatascience.com/make-your-tables-look-glorious-2a5ddbfcc0e5
+        """
         try:
             # Query
             query = self.session.query(
@@ -260,6 +265,7 @@ class RatingSystem:
             data_styled = (
                 data.style.format({"Letze Änderung": "{:%d %b, %Y}", "Rating": "{:.2f}", "Gewinnquote (%)": "{:.2%}"})
                 .set_caption("BV-Q-Club Rating Tabelle")
+                .set_properties(**{"text-align": "center"})
                 .set_properties(**{"background-color": "#FFCFC9", "color": "black"}, subset=["Spiele (V)"])
                 .set_properties(**{"background-color": "#C9FFC9", "color": "black"}, subset=["Spiele (G)"])
                 .set_properties(**{"background-color": "#BEEAE5", "color": "black"}, subset=["Rating"])
