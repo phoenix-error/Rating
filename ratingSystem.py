@@ -240,10 +240,6 @@ class RatingSystem:
         playerA_rating.rating += rating_change
         playerB_rating.rating -= rating_change
 
-        # Update the last_changed date
-        playerA_rating.last_change = datetime.now()
-        playerB_rating.last_change = datetime.now()
-
         # Update the games won and lost
         playerA_rating.games_won += scoreA
         playerA_rating.games_lost += scoreB
@@ -251,19 +247,28 @@ class RatingSystem:
         playerB_rating.games_won += scoreB
         playerB_rating.games_lost += scoreA
 
+        # Update the winning quote
+        playerA_rating.winning_quote = playerA_rating.games_won / (playerA_rating.games_won + playerA_rating.games_lost)
+        playerB_rating.winning_quote = playerB_rating.games_won / (playerB_rating.games_won + playerB_rating.games_lost)
+
+        # Update the last_changed date
+        playerA_rating.last_change = datetime.now()
+        playerB_rating.last_change = datetime.now()
+
         self.logger.info(f"Bewertungen für Spieler {playerA.name} und {playerB.name} aktualisiert.")
 
         return rating_change
 
     def rating_image(self):
         row_number = func.row_number().over().label("Platz")
-        rounded_rating = func.round(Rating.rating).label("Rating")
+        rounded_rating = func.round(Rating.rating, 2).label("Rating")
+        winning_quote = func.round(Rating.winning_quote * 100, 2).label("Sieger Quote")
         query = (
             self.session.query(
                 row_number,
                 Player.name.label("Namen"),
                 rounded_rating,
-                Rating.winning_quote.label("Sieger Quote"),
+                winning_quote,
                 Rating.games_won.label("Spiele (G)"),
                 Rating.games_lost.label("Spiele (V)"),
                 Rating.last_change.label("Letze Änderung"),
