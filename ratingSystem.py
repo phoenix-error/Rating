@@ -263,7 +263,7 @@ class RatingSystem:
         query = self.session.query(
             func.row_number().over(order_by=Rating.rating.desc()).label("Platz"),
             Player.name.label("Namen"),
-            func.round(Rating.rating, 2).label("Rating"),
+            Rating.rating.label("Rating"),
             (Rating.winning_quote * 100).label("Gewinnquote (%)"),
             Rating.games_won.label("Spiele (G)"),
             Rating.games_lost.label("Spiele (V)"),
@@ -273,6 +273,8 @@ class RatingSystem:
         result = query.all()
 
         data = pd.DataFrame(result)
+        data["Rating"] = data["Rating"].apply(lambda x: round(x, 2))
+        data["Gewinnquote (%)"] = data["Gewinnquote (%)"].apply(lambda x: round(x, 2))
         dfi.export(data.style.hide(axis="index"), "./rating.png", table_conversion="matplotlib")
 
         try:
