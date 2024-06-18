@@ -156,7 +156,9 @@ class RatingSystem:
             raise PlayerNotFoundException(playerB_name)
 
         # Check if the player adding the game is one of the players
-        if playerA.phone_number != phone_number and playerB.phone_number != phone_number:
+        if phone_number == environ["ADMIN_PHONE_NUMBER"] or (
+            playerA.phone_number != phone_number and playerB.phone_number != phone_number
+        ):
             raise PlayerNotInGameException()
 
         # Update ratings but don't commit yet
@@ -186,7 +188,9 @@ class RatingSystem:
             playerA = self.session.query(Player).filter_by(id=game.playerA).first()
             playerB = self.session.query(Player).filter_by(id=game.playerB).first()
 
-            if (not playerA or playerA.phone_number != phone_number) and (not playerB or playerB.phone_number != phone_number):
+            if phone_number == environ["ADMIN_PHONE_NUMBER"] or (
+                (not playerA or playerA.phone_number != phone_number) and (not playerB or playerB.phone_number != phone_number)
+            ):
                 raise PlayerNotInGameException()
 
             self.session.query(Game).filter_by(id=game_id).delete()
