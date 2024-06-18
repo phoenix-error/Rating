@@ -52,16 +52,31 @@ def verify_webhook():
 
 @app.route("/whatsapp", methods=["POST"])
 def whatsapp_message():
+    data = request.get_json()
+    if not data.get("object") == "whatsapp_business_account":
+        return {"status": "OK"}, 200
+
+    entry = data.get("entry")
+    if not entry or not entry[0].get("changes"):
+        return {"status": "OK"}, 200
+
+    change = entry[0].get("changes")[0]
+    if not change or not change.get("value"):
+        return {"status": "OK"}, 200
+
+    value = change.get("value")
+    if not value.get("metadata") or not value.get("messages"):
+        return {"status": "OK"}, 200
+
+    if not value["metadata"]["phone_number_id"] or not value["messages"][0]:
+        return {"status": "OK"}, 200
+
     try:
-        data = request.get_json()
-        assert data.get("object") == "whatsapp_business_account"
-
-        phone_number_id = data["entry"][0]["changes"][0]["value"]["metadata"]["phone_number_id"]
-        message = data["entry"][0]["changes"][0]["value"]["messages"][0]
-
+        phone_number_id = value["metadata"]["phone_number_id"]
+        message = value["messages"][0]
+        phone_number = message["from"]
         logger.info(f"Received message: {message} with phone number id: {phone_number_id}")
 
-        phone_number = message["from"]
         logger.info(f"Inital Session: {session.get(phone_number)}")
 
         match message["type"]:
