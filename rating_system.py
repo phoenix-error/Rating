@@ -174,8 +174,14 @@ class RatingSystem:
             if playerA.phone_number != phone_number and playerB.phone_number != phone_number:
                 raise PlayerNotInGameException()
 
-        # Update ratings but don't commit yet
-        rating_change = self._update_rating(playerA, playerB, scoreA, scoreB, game_type)
+        # Check if ratings exist
+        if (
+            not self.session.query(Rating).filter_by(player=playerA.id).first()
+            or not self.session.query(Rating).filter_by(player=playerB.id).first()
+        ):
+            raise PlayerNotInRatingException(playerA_name, playerB_name)
+
+        # Rating should be updated in the the init of Game
 
         new_game = Game(
             playerA=playerA.id,
@@ -184,16 +190,15 @@ class RatingSystem:
             scoreB=scoreB,
             race_to=max(scoreA, scoreB),
             disciplin=game_type,
-            rating_change=rating_change,
             session=self.session,
         )
         self.session.add(new_game)
         self.session.commit()
         self.logger.info(
-            f"Neues Spiel hinzugefügt (ID: {new_game.id}) zwischen {playerA_name} und {playerB_name}\nRating change {rating_change}."
+            f"Neues Spiel hinzugefügt (ID: {new_game.id}) zwischen {playerA_name} und {playerB_name}\nRating change {new_game.rating_change}."
         )
 
-        return (str(new_game.id), rating_change)
+        return (str(new_game.id), new_game.rating_change)
 
     def delete_game(self, game_id: str, phone_number: str):
         if not self.session.query(Game).filter_by(id=game_id).first():
@@ -211,36 +216,8 @@ class RatingSystem:
                 ):
                     raise PlayerNotInGameException()
 
-            playerA_rating = self.session.query(Rating).filter_by(player=playerA.id).first()
-            playerB_rating = self.session.query(Rating).filter_by(player=playerB.id).first()
-
-            if not playerA_rating and not playerB_rating:
-                raise PlayerNotInRatingException(playerA.name, playerB.name)
-
-            # Readjust the ratings
-            playerA_rating.rating -= game.rating_change
-            playerB_rating.rating += game.rating_change
-
-            playerA_rating.games_won -= game.scoreA
-            playerA_rating.games_lost -= game.scoreB
-
-            playerB_rating.games_won -= game.scoreB
-            playerB_rating.games_lost -= game.scoreA
-
-            if playerA_rating.games_won + playerA_rating.games_lost != 0:
-                playerA_rating.winning_quote = playerA_rating.games_won / (playerA_rating.games_won + playerA_rating.games_lost)
-            else:
-                playerA_rating.winning_quote = 0
-
-            if playerB_rating.games_won + playerB_rating.games_lost != 0:
-                playerB_rating.winning_quote = playerB_rating.games_won / (playerB_rating.games_won + playerB_rating.games_lost)
-            else:
-                playerB_rating.winning_quote = 0
-
-            playerA_rating.last_change = datetime.now()
-            playerB_rating.last_change = datetime.now()
-
             self.session.query(Game).filter_by(id=game_id).delete()
+            # Ratings should be updated in the after_delete_game event
             self.session.commit()
             self.logger.info(f"Spiel mit ID {game_id} gelöscht.")
 
