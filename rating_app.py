@@ -9,6 +9,7 @@ from message_provider import MessageProvider
 from constants import EINGABE_NICHT_ERKANNT, HELP_COMMAND
 from dotenv import load_dotenv
 from enums import UserState
+from sqlalchemy.exc import PendingRollbackError
 
 load_dotenv()
 
@@ -201,7 +202,7 @@ def handle_add_game(message, phone_number_id, phone_number):
         game_type = message.split("\n")[0]
         names = message.split("\n")[1]
         nameA, nameB = names.strip().split(":")
-        scores = [tuple(map(int, match)) for match in re.findall(r"\b(\d+):(\d+)\b", message)]
+        scores = [tuple(map(int, match)) for match in re.findall(r"\b(\d+)[ \t]*:[ \t]*(\d+)\b", message)]
 
         logger.info(f"Identified matches: {game_type}, {names}, {scores}")
 
@@ -236,6 +237,8 @@ def handle_add_game(message, phone_number_id, phone_number):
     except PlayerNotInGameException as e:
         MessageProvider.send_message(phone_number_id, phone_number, f"Fehler: {e}")
     except GameTypeNotSupportedException as e:
+        MessageProvider.send_message(phone_number_id, phone_number, f"Fehler: {e}")
+    except PendingRollbackError as e:
         MessageProvider.send_message(phone_number_id, phone_number, f"Fehler: {e}")
 
 
