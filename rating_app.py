@@ -1,7 +1,6 @@
 import logging
 from flask import Flask, request, jsonify
 import re
-import requests
 from waitress import serve
 from exceptions import *
 from os import urandom, environ
@@ -77,9 +76,9 @@ def whatsapp_message():
                             handle_message(phone_number_id, message)
                         except Exception as e:
                             logger.exception(f"Error while handling message. {e}")
-                            return "Error", 200
+                            return {"status": "Error handling message"}, 200
 
-    return "OK", 200
+    return {"status": "OK"}, 200
 
 
 def handle_message(phone_number_id, message):
