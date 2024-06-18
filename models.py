@@ -72,12 +72,15 @@ class Game(Base):
         playerA_rating = session.query(Rating).filter_by(player=self.playerA).first().rating
         playerB_rating = session.query(Rating).filter_by(player=self.playerB).first().rating
 
+        playerA = session.query(Player).filter_by(id=self.playerA).first()
+        playerB = session.query(Player).filter_by(id=self.playerB).first()
+
         calc_element = 1 / (1 + pow(10, ((playerB_rating - playerA_rating) / RATING_FACTOR)))
 
         if self.disciplin == GameType.NORMAL.value:
             rating_change = K_FACTOR * (self.scoreA - calc_element * (self.scoreA + self.scoreB))
             logger.info(
-                f"Normales Spiel: Rating-Änderung beträgt {rating_change}.\nSpieler {self.playerA.name} hat {self.scoreA} Spiele gewonnen, Spieler {self.playerB.name} hat {self.scoreB} Spiele gewonnen."
+                f"Normales Spiel: Rating-Änderung beträgt {rating_change}.\nSpieler {playerA.name} hat {self.scoreA} Spiele gewonnen, Spieler {playerB.name} hat {self.scoreB} Spiele gewonnen."
             )
         elif self.disciplin == GameType.STRAIGHT.value:
             scoreFactor1 = (
@@ -89,7 +92,7 @@ class Game(Base):
 
             rating_change = K_FACTOR * (scoreFactor1 - calc_element * (scoreFactor1 + scoreFactor2))
             logger.info(
-                f"14.1 Spiel: Rating-Änderung beträgt {rating_change}.\nSpieler {self.playerA.name} hat {self.scoreA} Spiele gewonnen, Spieler {self.playerB.name} hat {self.scoreB} Spiele gewonnen.\nDie Score-Faktoren sind {scoreFactor1} und {scoreFactor2}."
+                f"14.1 Spiel: Rating-Änderung beträgt {rating_change}.\nSpieler {playerA.name} hat {self.scoreA} Spiele gewonnen, Spieler {playerB.name} hat {self.scoreB} Spiele gewonnen.\nDie Score-Faktoren sind {scoreFactor1} und {scoreFactor2}."
             )
         else:
             raise GameTypeNotSupportedException()
@@ -100,6 +103,9 @@ class Game(Base):
         try:
             ratingA = session.query(Rating).filter_by(player=self.playerA).first()
             ratingB = session.query(Rating).filter_by(player=self.playerB).first()
+
+            playerA = session.query(Player).filter_by(id=self.playerA).first()
+            playerB = session.query(Player).filter_by(id=self.playerB).first()
 
             ratingA.games_won += self.scoreA
             ratingA.games_lost += self.scoreB
@@ -122,7 +128,7 @@ class Game(Base):
             ratingA.last_change = datetime.now()
             ratingB.last_change = datetime.now()
 
-            logger.info(f"Rating für Spieler {self.playerA.name} und {self.playerB.name} aktualisiert.")
+            logger.info(f"Rating für Spieler {playerA.name} und {playerB.name} aktualisiert.")
 
         except:
             session.rollback()
