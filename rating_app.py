@@ -156,7 +156,7 @@ class MessageProcessor:
                 MessageProvider.send_message(
                     self.phone_number_id,
                     self.phone_number,
-                    "Bitte geben Sie ein was Sie machen möchten:\nSpieltyp\nSpieler A:Spieler B\nScoreA:ScoreB\n...",
+                    "Bitte geben Sie das Spiel im folgenden Format ein:\n\nSpieltyp\nSpieler A: Spieler B\nScore A: Score B\nScore A: Score B\n...",
                 )
             case "Spiel löschen":
                 session[self.phone_number]["state"] = UserState.DELETE_GAME.value
@@ -251,7 +251,6 @@ class MessageProcessor:
     ):
         del session[self.phone_number]
         try:
-            id = int(id)
             self.ratingSystem.delete_game(id, self.phone_number)
             MessageProvider.send_message(self.phone_number_id, self.phone_number, f"Spiel {id} erfolgreich gelöscht.")
         except GameNotFoundException as e:

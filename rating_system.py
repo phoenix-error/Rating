@@ -183,7 +183,7 @@ class RatingSystem:
 
         return (str(new_game.id), rating_change)
 
-    def delete_game(self, game_id: int, phone_number: str):
+    def delete_game(self, game_id: str, phone_number: str):
         if not self.session.query(Game).filter_by(id=game_id).first():
             raise GameNotFoundException(game_id)
         else:
