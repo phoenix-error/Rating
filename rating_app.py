@@ -135,7 +135,7 @@ class MessageProcessor:
             case UserState.DELETE_GAME.value:
                 return self.handle_delete_game(id=message)
             case _:
-                del session[self.phone_number]
+                session.pop(self.phone_number, None)
                 MessageProvider.send_message(self.phone_number_id, self.phone_number, EINGABE_NICHT_ERKANNT)
 
     def handle_initial_state(self, message):
@@ -149,7 +149,7 @@ class MessageProcessor:
                     self.phone_number_id, self.phone_number, "Bitte geben Sie den Namen des Spielers ein."
                 )
             case "Spieler löschen":
-                del session[self.phone_number]
+                session.pop(self.phone_number, None)
                 try:
                     name = self.ratingSystem.delete_player(self.phone_number)
                     MessageProvider.send_message(self.phone_number_id, self.phone_number, f"Spieler {name} erfolgreich gelöscht.")
@@ -168,7 +168,7 @@ class MessageProcessor:
                     self.phone_number_id, self.phone_number, "Bitte geben Sie die ID des Spiels ein, das Sie löschen möchten."
                 )
             case "Rating anschauen":
-                del session[self.phone_number]
+                session.pop(self.phone_number, None)
                 try:
                     url = self.ratingSystem.rating_image()
                     MessageProvider.send_image(self.phone_number_id, self.phone_number, url)
@@ -179,14 +179,14 @@ class MessageProcessor:
                         f"Rating konnte nicht aktualisiert werden. Wende dich an den Admin.",
                     )
             case "hilfe" | "Hilfe":
-                del session[self.phone_number]
+                session.pop(self.phone_number, None)
                 MessageProvider.send_message(
                     self.phone_number_id,
                     self.phone_number,
                     HELP_COMMAND,
                 )
             case _:
-                del session[self.phone_number]
+                session.pop(self.phone_number, None)
                 MessageProvider.send_message(
                     self.phone_number_id,
                     self.phone_number,
@@ -194,7 +194,7 @@ class MessageProcessor:
                 )
 
     def handle_add_player(self, name):
-        del session[self.phone_number]
+        session.pop(self.phone_number, None)
         try:
             self.ratingSystem.add_player(name, self.phone_number)
             self.ratingSystem.add_player_to_rating(self.phone_number)
@@ -207,7 +207,7 @@ class MessageProcessor:
             MessageProvider.send_message(self.phone_number_id, self.phone_number, f"Fehler: {e}")
 
     def handle_add_game(self, message):
-        del session[self.phone_number]
+        session.pop(self.phone_number, None)
         try:
             game_type = message.split("\n")[0]
             names = message.split("\n")[1]
@@ -253,7 +253,7 @@ class MessageProcessor:
         self,
         id,
     ):
-        del session[self.phone_number]
+        session.pop(self.phone_number, None)
         try:
             self.ratingSystem.delete_game(id, self.phone_number)
             MessageProvider.send_message(self.phone_number_id, self.phone_number, f"Spiel {id} erfolgreich gelöscht.")
@@ -263,7 +263,7 @@ class MessageProcessor:
             MessageProvider.send_message(self.phone_number_id, self.phone_number, f"Fehler: {e}")
 
     def handle_admin_message(self, message: str):
-        del session[self.phone_number]
+        session.pop(self.phone_number, None)
         if self.phone_number != environ["ADMIN_PHONE_NUMBER"]:
             MessageProvider.send_message(
                 self.phone_number_id, self.phone_number, "Du hast keine Berechtigung, diese Aktion auszuführen."
@@ -277,7 +277,7 @@ class MessageProcessor:
                 MessageProvider.send_message(self.phone_number_id, self.phone_number, "Admin Command nicht erkannt.")
 
     def handle_adjust_rating(self, lines: list[str]):
-        del session[self.phone_number]
+        session.pop(self.phone_number, None)
         try:
             name = lines[0]
             rating = float(lines[1])

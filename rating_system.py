@@ -199,6 +199,35 @@ class RatingSystem:
                 ):
                     raise PlayerNotInGameException()
 
+            playerA_rating = self.session.query(Rating).filter_by(player=playerA.id).first()
+            playerB_rating = self.session.query(Rating).filter_by(player=playerB.id).first()
+
+            if not playerA_rating and not playerB_rating:
+                raise PlayerNotInRatingException(playerA.name, playerB.name)
+
+            # Readjust the ratings
+            playerA_rating.rating -= game.rating_change
+            playerB_rating.rating += game.rating_change
+
+            playerA_rating.games_won -= game.scoreA
+            playerA_rating.games_lost -= game.scoreB
+
+            playerB_rating.games_won -= game.scoreB
+            playerB_rating.games_lost -= game.scoreA
+
+            if playerA_rating.games_won + playerA_rating.games_lost != 0:
+                playerA_rating.winning_quote = playerA_rating.games_won / (playerA_rating.games_won + playerA_rating.games_lost)
+            else:
+                playerA_rating.winning_quote = 0
+
+            if playerB_rating.games_won + playerB_rating.games_lost != 0:
+                playerB_rating.winning_quote = playerB_rating.games_won / (playerB_rating.games_won + playerB_rating.games_lost)
+            else:
+                playerB_rating.winning_quote = 0
+
+            playerA_rating.last_change = datetime.now()
+            playerB_rating.last_change = datetime.now()
+
             self.session.query(Game).filter_by(id=game_id).delete()
             self.session.commit()
             self.logger.info(f"Spiel mit ID {game_id} gelöscht.")
