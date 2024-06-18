@@ -47,3 +47,10 @@ class PlayerNotInGameException(Exception):
 
     def __init__(self):
         super().__init__(f"Du kannst nur Spiele hinzufügen, in denen du mitspielst.")
+
+
+class AdminPermissionException(Exception):
+    """Exception raised for errors in the Rating System."""
+
+    def __init__(self):
+        super().__init__(f"Du hast keine Berechtigung, diese Aktion auszuführen.")

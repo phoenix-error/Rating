@@ -21,3 +21,12 @@ class GameType(Enum):
     @staticmethod
     def get_values():
         return [game.value for game in GameType]
+
+
+class UserState(Enum):
+    INITIAL = "initial"
+
+    ADD_PLAYER = "add_player"
+
+    ADD_GAME = "add_game"
+    DELETE_GAME = "delete_game"
