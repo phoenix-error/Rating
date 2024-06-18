@@ -229,7 +229,7 @@ class MessageProcessor:
                 message = "Spiele hinzugefügt.\n"
                 # Write scores with ids
                 for i, (id, rating_change) in enumerate(changes):
-                    message += f"Spiel {i+1}: ID: {id}. Ratingänderung: {rating_change}\n"
+                    message += f"Spiel {i+1}:\nID: {id}. Änderung: {rating_change:.2f}\n"
 
                 MessageProvider.send_message(self.phone_number_id, self.phone_number, message)
 
@@ -273,8 +273,36 @@ class MessageProcessor:
         match message.splitlines()[0]:
             case "adjust rating":
                 self.handle_adjust_rating(message.splitlines()[1:])
+            case "add player":
+
+                name = message.splitlines()[1]
+                phone_number = message.splitlines()[2]
+
+                session.pop(self.phone_number, None)
+                try:
+                    self.ratingSystem.add_player(name, phone_number)
+                    self.ratingSystem.add_player_to_rating(phone_number)
+                    MessageProvider.send_message(
+                        self.phone_number_id, self.phone_number, f"Spieler {name} erfolgreich hinzugefügt."
+                    )
+                except PlayerAlreadyExistsException as e:
+                    MessageProvider.send_message(self.phone_number_id, self.phone_number, f"Fehler: {e}")
+                except PlayerNotFoundException as e:
+                    MessageProvider.send_message(self.phone_number_id, self.phone_number, f"Fehler: {e}")
+                except PlayerAlreadyInRatingException as e:
+                    MessageProvider.send_message(self.phone_number_id, self.phone_number, f"Fehler: {e}")
+            case "delete player":
+                self.handle_delete_player(message.splitlines()[1])
             case _:
                 MessageProvider.send_message(self.phone_number_id, self.phone_number, "Admin Command nicht erkannt.")
+
+    def handle_delete_player(self, name: str):
+        session.pop(self.phone_number, None)
+        try:
+            self.ratingSystem.delete_player(self.phone_number, name=name)
+            MessageProvider.send_message(self.phone_number_id, self.phone_number, f"Spieler {name} erfolgreich gelöscht.")
+        except PlayerNotFoundException as e:
+            MessageProvider.send_message(self.phone_number_id, self.phone_number, f"Fehler: {e}")
 
     def handle_adjust_rating(self, lines: list[str]):
         session.pop(self.phone_number, None)

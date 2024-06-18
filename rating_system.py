@@ -79,7 +79,19 @@ class RatingSystem:
         self.session.commit()
         self.logger.info(f"Neuer Spieler {name} wurde zur Datenbank hinzugefügt.")
 
-    def delete_player(self, phone_number: str):
+    def delete_player(self, phone_number: str, name: str = None):
+        if phone_number == environ["ADMIN_PHONE_NUMBER"] and name:
+            self.logger.info(f"Admin löscht Spieler {name}.")
+            player = self.session.query(Player).filter_by(name=name).first()
+
+            if not player:
+                raise PlayerNotFoundException(name)
+
+            self.session.delete(player)
+            self.session.commit()
+            self.logger.info(f"Spielereintrag für {player.name} aus der Datenbank gelöscht.")
+            return
+
         try:
             self.logger.info(f"Suche {phone_number} in der Datenbank.")
             player = self.session.query(Player).filter_by(phone_number=phone_number).one()
