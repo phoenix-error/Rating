@@ -92,7 +92,7 @@ def whatsapp_message():
         return {"status": "Error handling message"}, 200
 
 
-def handle_message(self, phone_number_id, phone_number, message: str, current_state: str):
+def handle_message(phone_number_id, phone_number, message: str, current_state: str):
     if message.startswith("admin"):
         handle_admin_message(message.replace("admin", "").strip(), phone_number_id, phone_number)
         return
