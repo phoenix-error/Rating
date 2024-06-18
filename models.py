@@ -72,7 +72,7 @@ class Game(Base):
         playerA_rating = session.query(Rating).filter_by(player=self.playerA).first().rating
         playerB_rating = session.query(Rating).filter_by(player=self.playerB).first().rating
 
-        calc_element = 1 / (1 + pow(10, ((playerB_rating.rating - playerA_rating.rating) / RATING_FACTOR)))
+        calc_element = 1 / (1 + pow(10, ((playerB_rating - playerA_rating) / RATING_FACTOR)))
 
         if self.disciplin == GameType.NORMAL.value:
             rating_change = K_FACTOR * (self.scoreA - calc_element * (self.scoreA + self.scoreB))
