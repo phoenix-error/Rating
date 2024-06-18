@@ -138,6 +138,7 @@ class Game(Base):
 
 @event.listens_for(Game, "after_delete")
 def after_delete_game(mapper, connection, target):
+    logger.info("DELETE EVENT TRIGGERED")
     ratingA = connection.query(Rating).filter_by(player=target.playerA).first()
     ratingB = connection.query(Rating).filter_by(player=target.playerB).first()
 
