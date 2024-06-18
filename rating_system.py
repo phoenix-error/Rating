@@ -4,7 +4,7 @@ from datetime import datetime
 from math import floor
 import pandas as pd
 import dataframe_image as dfi
-from sqlalchemy import create_engine, func
+from sqlalchemy import create_engine, func, event
 from sqlalchemy.orm import sessionmaker
 from models import Base, Player, Rating, Game
 from constants import (
@@ -47,6 +47,8 @@ class RatingSystem:
             format="%(asctime)s %(levelname)s %(message)s",
             force=True,
         )
+
+        event.listen(Game, "before_delete", self.after_delete_game)
 
     def get_names(self):
         names = self.session.query(Player.name).all()
@@ -221,69 +223,32 @@ class RatingSystem:
             self.session.commit()
             self.logger.info(f"Spiel mit ID {game_id} gelöscht.")
 
-    def _update_rating(
-        self,
-        playerA: Player,
-        playerB: Player,
-        scoreA: float,
-        scoreB: float,
-        game_type: GameType,
-    ):
-        playerA_rating = self.session.query(Rating).filter_by(player=playerA.id).first()
-        playerB_rating = self.session.query(Rating).filter_by(player=playerB.id).first()
+    def after_delete_game(self, mapper, connection, target):
+        self.logger.info("DELETE EVENT TRIGGERED")
+        ratingA = connection.query(Rating).filter_by(player=target.playerA).first()
+        ratingB = connection.query(Rating).filter_by(player=target.playerB).first()
 
-        if not playerA_rating and not playerB_rating:
-            raise PlayerNotInRatingException(playerA.name, playerB.name)
-        elif not playerA_rating:
-            raise PlayerNotInRatingException(playerA.name)
-        elif not playerB_rating:
-            raise PlayerNotInRatingException(playerB.name)
+        ratingA.games_won -= target.scoreA
+        ratingB.games_lost -= target.scoreB
+        ratingA.rating -= target.rating_change
+        ratingB.rating += target.rating_change
 
-        assert playerA_rating.rating
-        assert playerB_rating.rating
-        # Calculate the change in rating
-        calc_element = 1 / (1 + pow(10, ((playerB_rating.rating - playerA_rating.rating) / RATING_FACTOR)))
-
-        if game_type == GameType.NORMAL.value:
-            rating_change = K_FACTOR * (scoreA - calc_element * (scoreA + scoreB))
-
-            self.logger.info(
-                f"Normales Spiel: Rating-Änderung beträgt {rating_change}.\nSpieler {playerA.name} hat {scoreA} Spiele gewonnen, Spieler {playerB.name} hat {scoreB} Spiele gewonnen."
-            )
-        elif game_type == GameType.STRAIGHT.value:
-            scoreFactor1 = scoreB / 10.0 if scoreA > scoreB else floor(scoreA / scoreB * scoreA / 10.0)
-            scoreFactor2 = floor(scoreB / scoreA * scoreB / 10.0) if scoreB < scoreA else scoreA / 10.0
-
-            rating_change = K_FACTOR * (scoreFactor1 - calc_element * (scoreFactor1 + scoreFactor2))
-
-            self.logger.info(
-                f"14.1 Spiel: Rating-Änderung beträgt {rating_change}.\nSpieler {playerA.name} hat {scoreA} Spiele gewonnen, Spieler {playerB.name} hat {scoreB} Spiele gewonnen.\nDie Score-Faktoren sind {scoreFactor1} und {scoreFactor2}."
-            )
+        if ratingA.games_won + ratingA.games_lost == 0:
+            ratingA.winning_quote = None
         else:
-            raise GameTypeNotSupportedException(game_type)
+            ratingA.winning_quote = ratingA.games_won / (ratingA.games_won + ratingA.games_lost)
 
-        # Update the ratings
-        playerA_rating.rating += rating_change
-        playerB_rating.rating -= rating_change
+        if ratingB.games_won + ratingB.games_lost == 0:
+            ratingB.winning_quote = None
+        else:
+            ratingB.winning_quote = ratingB.games_won / (ratingB.games_won + ratingB.games_lost)
 
-        # Update the games won and lost
-        playerA_rating.games_won += scoreA
-        playerA_rating.games_lost += scoreB
+        ratingA.last_change = datetime.now()
+        ratingB.last_change = datetime.now()
 
-        playerB_rating.games_won += scoreB
-        playerB_rating.games_lost += scoreA
-
-        # Update the winning quote
-        playerA_rating.winning_quote = playerA_rating.games_won / (playerA_rating.games_won + playerA_rating.games_lost)
-        playerB_rating.winning_quote = playerB_rating.games_won / (playerB_rating.games_won + playerB_rating.games_lost)
-
-        # Update the last_changed date
-        playerA_rating.last_change = datetime.now()
-        playerB_rating.last_change = datetime.now()
-
-        self.logger.info(f"Rating für Spieler {playerA.name} und {playerB.name} aktualisiert.")
-
-        return rating_change
+        connection.add(ratingA)
+        connection.add(ratingB)
+        connection.commit()
 
     def rating_image(self):
         """Creates a table with the current ratings and exports it as an image.

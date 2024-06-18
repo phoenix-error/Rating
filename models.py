@@ -134,32 +134,3 @@ class Game(Base):
             session.rollback()
         else:
             session.commit()
-
-
-@event.listens_for(Game, "after_delete")
-def after_delete_game(mapper, connection, target):
-    logger.info("DELETE EVENT TRIGGERED")
-    ratingA = connection.query(Rating).filter_by(player=target.playerA).first()
-    ratingB = connection.query(Rating).filter_by(player=target.playerB).first()
-
-    ratingA.games_won -= target.scoreA
-    ratingB.games_lost -= target.scoreB
-    ratingA.rating -= target.rating_change
-    ratingB.rating += target.rating_change
-
-    if ratingA.games_won + ratingA.games_lost == 0:
-        ratingA.winning_quote = None
-    else:
-        ratingA.winning_quote = ratingA.games_won / (ratingA.games_won + ratingA.games_lost)
-
-    if ratingB.games_won + ratingB.games_lost == 0:
-        ratingB.winning_quote = None
-    else:
-        ratingB.winning_quote = ratingB.games_won / (ratingB.games_won + ratingB.games_lost)
-
-    ratingA.last_change = datetime.now()
-    ratingB.last_change = datetime.now()
-
-    connection.add(ratingA)
-    connection.add(ratingB)
-    connection.commit()
