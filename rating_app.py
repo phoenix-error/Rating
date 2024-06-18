@@ -102,6 +102,7 @@ def whatsapp_message():
             MessageProvider.send_message(phone_number_id, phone_number, EINGABE_NICHT_ERKANNT)
 
         logger.info(f"Final Session: {session.get(phone_number)}")
+        return {"status": "OK"}, 200
     except Exception as e:
         logger.exception(f"Error while handling message. {e}")
         return {"status": "Error handling message"}, 200
