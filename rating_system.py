@@ -48,8 +48,6 @@ class RatingSystem:
             force=True,
         )
 
-        event.listen(Game, "before_delete", self.after_delete_game)
-
     def get_names(self):
         names = self.session.query(Player.name).all()
         return [row[0] for row in names]
@@ -222,33 +220,6 @@ class RatingSystem:
             # Ratings should be updated in the after_delete_game event
             self.session.commit()
             self.logger.info(f"Spiel mit ID {game_id} gelöscht.")
-
-    def after_delete_game(self, mapper, connection, target):
-        self.logger.info("DELETE EVENT TRIGGERED")
-        ratingA = connection.query(Rating).filter_by(player=target.playerA).first()
-        ratingB = connection.query(Rating).filter_by(player=target.playerB).first()
-
-        ratingA.games_won -= target.scoreA
-        ratingB.games_lost -= target.scoreB
-        ratingA.rating -= target.rating_change
-        ratingB.rating += target.rating_change
-
-        if ratingA.games_won + ratingA.games_lost == 0:
-            ratingA.winning_quote = None
-        else:
-            ratingA.winning_quote = ratingA.games_won / (ratingA.games_won + ratingA.games_lost)
-
-        if ratingB.games_won + ratingB.games_lost == 0:
-            ratingB.winning_quote = None
-        else:
-            ratingB.winning_quote = ratingB.games_won / (ratingB.games_won + ratingB.games_lost)
-
-        ratingA.last_change = datetime.now()
-        ratingB.last_change = datetime.now()
-
-        connection.add(ratingA)
-        connection.add(ratingB)
-        connection.commit()
 
     def rating_image(self):
         """Creates a table with the current ratings and exports it as an image.
