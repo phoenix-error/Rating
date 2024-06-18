@@ -138,7 +138,7 @@ class RatingSystem:
         changes = []
         for score1, score2 in scores:
             id, rating_change = self.add_game(playerA, playerB, score1, score2, game_type, phone_number)
-            changes.append(id, rating_change)
+            changes.append((id, rating_change))
         return changes
 
     def add_game(self, playerA_name, playerB_name, scoreA, scoreB, game_type, phone_number) -> tuple[str, float]:
