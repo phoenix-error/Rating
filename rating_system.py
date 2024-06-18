@@ -155,11 +155,12 @@ class RatingSystem:
         elif not playerB:
             raise PlayerNotFoundException(playerB_name)
 
-        # Check if the player adding the game is one of the players
-        if phone_number != environ["ADMIN_PHONE_NUMBER"] or (
-            playerA.phone_number != phone_number and playerB.phone_number != phone_number
-        ):
-            raise PlayerNotInGameException()
+        if phone_number == environ["ADMIN_PHONE_NUMBER"]:
+            self.logger.info(f"Admin {phone_number} fügt Spiel hinzu.")
+        else:
+            # Check if the player adding the game is one of the players
+            if playerA.phone_number != phone_number and playerB.phone_number != phone_number:
+                raise PlayerNotInGameException()
 
         # Update ratings but don't commit yet
         rating_change = self._update_rating(playerA, playerB, scoreA, scoreB, game_type)
@@ -188,10 +189,13 @@ class RatingSystem:
             playerA = self.session.query(Player).filter_by(id=game.playerA).first()
             playerB = self.session.query(Player).filter_by(id=game.playerB).first()
 
-            if phone_number != environ["ADMIN_PHONE_NUMBER"] or (
-                (not playerA or playerA.phone_number != phone_number) and (not playerB or playerB.phone_number != phone_number)
-            ):
-                raise PlayerNotInGameException()
+            if phone_number == environ["ADMIN_PHONE_NUMBER"]:
+                self.logger.info(f"Admin {phone_number} löscht Spiel.")
+            else:
+                if (not playerA or playerA.phone_number != phone_number) and (
+                    not playerB or playerB.phone_number != phone_number
+                ):
+                    raise PlayerNotInGameException()
 
             self.session.query(Game).filter_by(id=game_id).delete()
             self.session.commit()
