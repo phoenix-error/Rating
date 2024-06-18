@@ -1,12 +1,13 @@
 import logging
-from flask import Flask, request, jsonify
+from flask import Flask, request
 import re
 from waitress import serve
 from exceptions import *
-from os import urandom, environ
+from os import environ
 from enum import Enum
 from rating_system import RatingSystem
 from message_provider import MessageProvider
+from constants import EINGABE_NICHT_ERKANNT, HELP_COMMAND
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -95,22 +96,20 @@ def handle_message(phone_number_id, message):
                 incoming_message = message["interactive"]["list_reply"]["title"]
             else:
                 logger.info(f"Interactive message type not supported: {message}")
-                MessageProvider.send_message(phone_number_id, phone_number, "Eingabe nicht erkannt.")
+                MessageProvider.send_message(phone_number_id, phone_number, EINGABE_NICHT_ERKANNT)
         case _:
             logger.info(f"Message type not supported: {message}")
-            MessageProvider.send_message(phone_number_id, phone_number, "Eingabe nicht erkannt.")
+            MessageProvider.send_message(phone_number_id, phone_number, EINGABE_NICHT_ERKANNT)
 
     if phone_number and incoming_message:
         if not session.get(phone_number):
             session[phone_number] = {"state": UserState.INITIAL.value}
-            logger.info(f"Sending initial message to {phone_number}")
-            MessageProvider.send_inital_message(phone_number_id, phone_number)
-        else:
-            message_processor = MessageProcessor(phone_number_id, phone_number)
-            message_processor.handle_message(incoming_message, session[phone_number]["state"])
+
+        message_processor = MessageProcessor(phone_number_id, phone_number)
+        message_processor.handle_message(incoming_message, session[phone_number]["state"])
     else:
         del session[phone_number]
-        MessageProvider.send_message(phone_number_id, phone_number, "Eingabe nicht erkannt.")
+        MessageProvider.send_message(phone_number_id, phone_number, EINGABE_NICHT_ERKANNT)
 
     logger.info(f"Final Session: {session.get(phone_number)}")
 
@@ -133,10 +132,13 @@ class MessageProcessor:
                 return self.handle_delete_game(id=message)
             case _:
                 del session[self.phone_number]
-                MessageProvider.send_message(self.phone_number_id, self.phone_number, "Eingabe nicht erkannt.")
+                MessageProvider.send_message(self.phone_number_id, self.phone_number, EINGABE_NICHT_ERKANNT)
 
     def handle_initial_state(self, message):
         match message:
+            case "start" | "Start":
+                logger.info(f"Sending initial message to {self.phone_number}")
+                MessageProvider.send_inital_message(self.phone_number_id, self.phone_number)
             case "Spieler hinzufügen":
                 session[self.phone_number]["state"] = UserState.ADD_PLAYER.value
                 MessageProvider.send_message(
@@ -172,6 +174,20 @@ class MessageProcessor:
                         self.phone_number,
                         f"Rating konnte nicht aktualisiert werden. Wende dich an den Admin.",
                     )
+            case "hilfe" | "Hilfe":
+                del session[self.phone_number]
+                MessageProvider.send_message(
+                    self.phone_number_id,
+                    self.phone_number,
+                    HELP_COMMAND,
+                )
+            case _:
+                del session[self.phone_number]
+                MessageProvider.send_message(
+                    self.phone_number_id,
+                    self.phone_number,
+                    EINGABE_NICHT_ERKANNT,
+                )
 
     def handle_add_player(self, name):
         del session[self.phone_number]
