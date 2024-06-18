@@ -203,23 +203,45 @@ class RatingSystem:
     def delete_game(self, game_id: str, phone_number: str):
         if not self.session.query(Game).filter_by(id=game_id).first():
             raise GameNotFoundException(game_id)
+
+        game = self.session.query(Game).filter_by(id=game_id).first()
+        playerA = self.session.query(Player).filter_by(id=game.playerA).first()
+        playerB = self.session.query(Player).filter_by(id=game.playerB).first()
+
+        if phone_number == environ["ADMIN_PHONE_NUMBER"]:
+            self.logger.info(f"Admin {phone_number} löscht Spiel.")
         else:
-            game = self.session.query(Game).filter_by(id=game_id).first()
-            playerA = self.session.query(Player).filter_by(id=game.playerA).first()
-            playerB = self.session.query(Player).filter_by(id=game.playerB).first()
+            if (not playerA or playerA.phone_number != phone_number) and (not playerB or playerB.phone_number != phone_number):
+                raise PlayerNotInGameException()
 
-            if phone_number == environ["ADMIN_PHONE_NUMBER"]:
-                self.logger.info(f"Admin {phone_number} löscht Spiel.")
-            else:
-                if (not playerA or playerA.phone_number != phone_number) and (
-                    not playerB or playerB.phone_number != phone_number
-                ):
-                    raise PlayerNotInGameException()
+        ratingA = self.session.query(Rating).filter_by(player=game.playerA).first()
+        ratingB = self.session.query(Rating).filter_by(player=game.playerB).first()
 
-            self.session.query(Game).filter_by(id=game_id).delete()
-            # Ratings should be updated in the after_delete_game event
-            self.session.commit()
-            self.logger.info(f"Spiel mit ID {game_id} gelöscht.")
+        if not ratingA or not ratingB:
+            raise PlayerNotInRatingException(playerA.name, playerB.name)
+
+        ratingA.games_won -= game.scoreA
+        ratingB.games_lost -= game.scoreB
+        ratingA.rating -= game.rating_change
+        ratingB.rating += game.rating_change
+
+        if ratingA.games_won + ratingA.games_lost == 0:
+            ratingA.winning_quote = None
+        else:
+            ratingA.winning_quote = ratingA.games_won / (ratingA.games_won + ratingA.games_lost)
+
+        if ratingB.games_won + ratingB.games_lost == 0:
+            ratingB.winning_quote = None
+        else:
+            ratingB.winning_quote = ratingB.games_won / (ratingB.games_won + ratingB.games_lost)
+
+        ratingA.last_change = datetime.now()
+        ratingB.last_change = datetime.now()
+
+        self.session.query(Game).filter_by(id=game_id).delete()
+        # Ratings should be updated in the after_delete_game event
+        self.session.commit()
+        self.logger.info(f"Spiel mit ID {game_id} gelöscht.")
 
     def rating_image(self):
         """Creates a table with the current ratings and exports it as an image.
