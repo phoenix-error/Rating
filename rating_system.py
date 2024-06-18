@@ -319,7 +319,10 @@ class RatingSystem:
             self.logger.info("Das Rating-Tabellenbild wurde exportiert.")
             return res
 
-    def adjust_rating(self, name, rating, games_won, games_lost):
+    def adjust_rating(self, name, rating, games_won, games_lost, phone_number=None):
+        if phone_number and phone_number != environ["ADMIN_PHONE_NUMBER"]:
+            raise AdminPermissionException()
+
         name = self.find_closest_name(name)
         player = self.session.query(Player).filter_by(name=name).first()
         if not player:

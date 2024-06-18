@@ -121,11 +121,15 @@ class MessageProcessor:
         self.phone_number = phone_number
 
     def handle_message(self, message: str, current_state: str):
+        if message.startswith("admin"):
+            self.handle_admin_message(message.replace("admin", "").strip())
+            return
+
         match current_state:
             case UserState.INITIAL.value:
-                return self.handle_initial_state(message)
+                self.handle_initial_state(message)
             case UserState.ADD_PLAYER.value:
-                return self.handle_add_player(name=message)
+                self.handle_add_player(name=message)
             case UserState.ADD_GAME.value:
                 return self.handle_add_game(message)
             case UserState.DELETE_GAME.value:
@@ -256,6 +260,36 @@ class MessageProcessor:
         except GameNotFoundException as e:
             MessageProvider.send_message(self.phone_number_id, self.phone_number, f"Fehler: {e}")
         except PlayerNotInGameException as e:
+            MessageProvider.send_message(self.phone_number_id, self.phone_number, f"Fehler: {e}")
+
+    def handle_admin_message(self, message: str):
+        del session[self.phone_number]
+        if self.phone_number != environ["ADMIN_PHONE_NUMBER"]:
+            MessageProvider.send_message(
+                self.phone_number_id, self.phone_number, "Du hast keine Berechtigung, diese Aktion auszuführen."
+            )
+            return
+
+        match message.splitlines()[0]:
+            case "adjust rating":
+                self.handle_adjust_rating(message.splitlines()[1:])
+            case _:
+                MessageProvider.send_message(self.phone_number_id, self.phone_number, "Admin Command nicht erkannt.")
+
+    def handle_adjust_rating(self, lines: list[str]):
+        del session[self.phone_number]
+        try:
+            name = lines[0]
+            rating = float(lines[1])
+            games_won = int(lines[2])
+            games_lost = int(lines[3])
+            self.ratingSystem.adjust_rating(name, rating, games_won, games_lost)
+            MessageProvider.send_message(self.phone_number_id, self.phone_number, f"Rating für {name} erfolgreich angepasst.")
+        except PlayerNotFoundException as e:
+            MessageProvider.send_message(self.phone_number_id, self.phone_number, f"Fehler: {e}")
+        except PlayerNotInRatingException as e:
+            MessageProvider.send_message(self.phone_number_id, self.phone_number, f"Fehler: {e}")
+        except ValueError as e:
             MessageProvider.send_message(self.phone_number_id, self.phone_number, f"Fehler: {e}")
 
 
