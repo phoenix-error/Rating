@@ -55,8 +55,8 @@ def verify_webhook():
             return challenge, 200
         else:
             # Respond with '403 Forbidden' if verify tokens do not match
-            return jsonify({"status": "error", "message": "Verification failed"}), 403
-    return jsonify({"status": "error", "message": "Missing parameters"}), 400
+            return {"status": "error", "message": "Verification failed"}, 403
+    return {"status": "error", "message": "Missing parameters"}, 400
 
 
 @app.route("/whatsapp", methods=["POST"])
@@ -212,16 +212,22 @@ class MessageProcessor:
 
             logger.info(f"Identified matches: {game_type}, {names}, {scores}")
 
-            ids = self.ratingSystem.add_games(nameA, nameB, scores, game_type, self.phone_number)
+            changes = self.ratingSystem.add_games(nameA, nameB, scores, game_type, self.phone_number)
 
-            if not ids:
+            if not changes:
                 MessageProvider.send_message(self.phone_number_id, self.phone_number, "Keine Spiele hinzugefügt.")
-            elif len(ids) == 1:
-                MessageProvider.send_message(self.phone_number_id, self.phone_number, f"Spiel hinzugefügt. ID: {ids[0]}")
-            else:
+            elif len(changes) == 1:
+                id, rating_change = changes[0]
                 MessageProvider.send_message(
-                    self.phone_number_id, self.phone_number, f"Spiele hinzugefügt. IDs: {', '.join(map(str, ids))}"
+                    self.phone_number_id, self.phone_number, f"Spiel hinzugefügt. ID: {id}. Ratingänderung: {rating_change}"
                 )
+            else:
+                message = "Spiele hinzugefügt.\n"
+                # Write scores with ids
+                for i, (id, rating_change) in enumerate(changes):
+                    message += f"Spiel {i+1}: ID: {id}. Ratingänderung: {rating_change}\n"
+
+                MessageProvider.send_message(self.phone_number_id, self.phone_number, message)
 
             try:
                 url = self.ratingSystem.rating_image()

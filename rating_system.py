@@ -134,14 +134,14 @@ class RatingSystem:
         self.session.commit()
         self.logger.info(f"Spieler {player.name} aus dem Rating gelöscht.")
 
-    def add_games(self, playerA, playerB, scores, game_type, phone_number) -> list[str]:
-        ids = []
+    def add_games(self, playerA, playerB, scores, game_type, phone_number) -> list[tuple[str, float]]:
+        changes = []
         for score1, score2 in scores:
-            id = self.add_game(playerA, playerB, score1, score2, game_type, phone_number)
-            ids.append(id)
-        return ids
+            id, rating_change = self.add_game(playerA, playerB, score1, score2, game_type, phone_number)
+            changes.append(id, rating_change)
+        return changes
 
-    def add_game(self, playerA_name, playerB_name, scoreA, scoreB, game_type, phone_number) -> str:
+    def add_game(self, playerA_name, playerB_name, scoreA, scoreB, game_type, phone_number) -> tuple[str, float]:
         playerA_name = self.find_closest_name(playerA_name)
         playerB_name = self.find_closest_name(playerB_name)
 
@@ -177,9 +177,11 @@ class RatingSystem:
         )
         self.session.add(new_game)
         self.session.commit()
-        self.logger.info(f"Neues Spiel hinzugefügt (ID: {new_game.id}) zwischen {playerA_name} und {playerB_name}.")
+        self.logger.info(
+            f"Neues Spiel hinzugefügt (ID: {new_game.id}) zwischen {playerA_name} und {playerB_name}\nRating change {rating_change}."
+        )
 
-        return str(new_game.id)
+        return (str(new_game.id), rating_change)
 
     def delete_game(self, game_id: int, phone_number: str):
         if not self.session.query(Game).filter_by(id=game_id).first():
