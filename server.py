@@ -13,6 +13,7 @@ import sentry_sdk
 from sentry_sdk import capture_exception, set_user
 from sentry_sdk.integrations.logging import LoggingIntegration
 from flask_sqlalchemy import SQLAlchemy
+from app import app, db
 
 
 logging.basicConfig(
@@ -38,19 +39,6 @@ sentry_sdk.init(
     profiles_sample_rate=1.0,
     integrations=[sentry_logging],
 )
-
-username = environ["SUPABASE_USER"]
-password = environ["SUPABASE_PASSWORD"]
-host = environ["SUPABASE_HOST"]
-port = environ["SUPABASE_PORT"]
-dbname = environ["SUPABASE_NAME"]
-app = Flask(__name__)
-app.config["SQLALCHEMY_DATABASE_URI"] = f"postgresql+psycopg2://{username}:{password}@{host}:{port}/{dbname}"
-app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-db = SQLAlchemy(app)
-
-with app.app_context():
-    db.create_all()
 
 session = dict()
 

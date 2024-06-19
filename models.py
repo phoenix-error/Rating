@@ -6,7 +6,7 @@ from constants import RATING_FACTOR, K_FACTOR
 from math import floor
 from exceptions import GameTypeNotSupportedException
 import logging
-from rating_app import db
+from app import db
 
 
 logger = logging.getLogger(__name__)
@@ -17,16 +17,16 @@ logging.basicConfig(
 )
 
 
-class Player(db):
+class Player(db.Model):
     __tablename__ = "players"
-    id = db.Column(db.db.UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = db.Column(db.UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name = db.Column(db.String, nullable=False)
     phone_number = db.Column(db.String, nullable=False, unique=True)
 
     games = db.relationship("Game", primaryjoin="or_(Player.id==Game.playerA, Player.id==Game.playerB)")
 
 
-class Rating(db):
+class Rating(db.Model):
     __tablename__ = "ratings"
     player = db.Column(db.UUID, db.ForeignKey("players.id", ondelete="CASCADE"), primary_key=True)
     rating = db.Column(db.Float, nullable=False)
@@ -36,7 +36,7 @@ class Rating(db):
     last_change = db.Column(db.Date, nullable=False, onupdate=datetime.now)
 
 
-class Game(db):
+class Game(db.Model):
     __tablename__ = "games"
     id = db.Column(db.String, primary_key=True)
     playerA = db.Column(db.UUID, db.ForeignKey("players.id"))
@@ -45,7 +45,7 @@ class Game(db):
     scoreB = db.Column(db.Integer, nullable=False)
     race_to = db.Column(db.Integer, nullable=False)
     disciplin = db.Column(db.String, nullable=False)
-    rating_change = db.Column(db.db.Float, nullable=False)
+    rating_change = db.Column(db.Float, nullable=False)
 
     @staticmethod
     def generate_unique_id():
