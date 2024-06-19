@@ -54,7 +54,7 @@ with app.app_context():
     db.create_all()
 
 session = dict()
-ratingSystem = RatingSystem()
+ratingSystem = RatingSystem(db=db)
 
 
 @app.route("/")
