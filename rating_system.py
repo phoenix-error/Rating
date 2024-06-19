@@ -255,10 +255,11 @@ class RatingSystem:
 
         # Upload to storage
         storage = self.supabase.storage
-        buckets = storage.list_buckets()
-        if not buckets:
+        try:
             storage.create_bucket("rating", options={"public": True})
             logging.info("Ein neuer Bucket für das Rating-Tabellenbild wurde erstellt.")
+        except:
+            self.logger.info("Bucket für das Rating-Tabellenbild bereits vorhanden.")
 
         ratingBucket = storage.from_("rating")
 
@@ -273,15 +274,14 @@ class RatingSystem:
     def export_database(self):
         # Upload to storage
         storage = self.supabase.storage
-        buckets = storage.get_bucket("backup")
-        if not buckets:
+        try:
             storage.create_bucket("backup")
-            logging.info("Ein neuer Bucket für das Backup wurde erstellt.")
+        except:
+            logging.info("Bucket für das Backup bereits vorhanden.")
 
         backup_bucket = storage.from_("backup")
-
         # Delete backups older than 7 days
-        files = backup_bucket.list_files()
+        files = backup_bucket.list()
         for file in files:
             if (datetime.now() - datetime.strptime(file["last_modified"], "%Y-%m-%dT%H:%M:%S.%fZ")).days > 7:
                 backup_bucket.remove(file["name"])
