@@ -3,7 +3,7 @@ dataframe-image
 matplotlib
 twilio
 flask
-FlaskSQLAlchemy
+Flask-SQLAlchemy
 sqlalchemy
 python-dotenv
 psycopg2-binary

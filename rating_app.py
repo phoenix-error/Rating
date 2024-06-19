@@ -50,6 +50,9 @@ app.config["SQLALCHEMY_DATABASE_URI"] = f"postgresql+psycopg2://{username}:{pass
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 db = SQLAlchemy(app)
 
+with app.app_context():
+    db.create_all()
+
 session = dict()
 ratingSystem = RatingSystem()
 
