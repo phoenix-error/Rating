@@ -10,15 +10,29 @@ from constants import EINGABE_NICHT_ERKANNT, HELP_COMMAND
 from dotenv import load_dotenv
 from enums import UserState
 from sqlalchemy.exc import PendingRollbackError
+import sentry_sdk
+from sentry_sdk.integrations.logging import LoggingIntegration
+
+sentry_logging = LoggingIntegration(
+    level=logging.INFO, event_level=logging.ERROR  # Capture info and above as breadcrumbs  # Send errors as events
+)
 
 load_dotenv()
 
-logger = logging.getLogger(__name__)
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(message)s",
-    force=True,
+sentry_sdk.init(
+    dsn=environ["SENTRY_DSN"],
+    # Set traces_sample_rate to 1.0 to capture 100%
+    # of transactions for performance monitoring.
+    traces_sample_rate=1.0,
+    # Set profiles_sample_rate to 1.0 to profile 100%
+    # of sampled transactions.
+    # We recommend adjusting this value in production.
+    profiles_sample_rate=1.0,
+    integrations=[sentry_logging],
 )
+
+log_message = sentry_sdk.capture_message
+log_exception = sentry_sdk.capture_exception
 
 
 app = Flask(__name__)
@@ -37,7 +51,7 @@ def verify_webhook():
     token = request.args.get("hub.verify_token")
     challenge = request.args.get("hub.challenge")
 
-    logger.info(f"Received request with mode: {mode}, token: {token}, challenge: {challenge}")
+    log_message(f"Received request with mode: {mode}, token: {token}, challenge: {challenge}")
 
     # Check if a token and mode are in the query string
     if mode and token:
@@ -76,9 +90,9 @@ def whatsapp_message():
         phone_number_id = value["metadata"]["phone_number_id"]
         message = value["messages"][0]
         phone_number = message["from"]
-        logger.info(f"Received message: {message} with phone number id: {phone_number_id}")
+        log_message(f"Received message: {message} with phone number id: {phone_number_id}")
 
-        logger.info(f"Inital Session: {session.get(phone_number)}")
+        log_message(f"Inital Session: {session.get(phone_number)}")
 
         match message["type"]:
             case "text":
@@ -87,10 +101,10 @@ def whatsapp_message():
                 if message["interactive"]["type"] == "list_reply":
                     incoming_message = message["interactive"]["list_reply"]["title"]
                 else:
-                    logger.info(f"Interactive message type not supported: {message}")
+                    log_message(f"Interactive message type not supported: {message}")
                     MessageProvider.send_message(phone_number_id, phone_number, EINGABE_NICHT_ERKANNT)
             case _:
-                logger.info(f"Message type not supported: {message}")
+                log_message(f"Message type not supported: {message}")
                 MessageProvider.send_message(phone_number_id, phone_number, EINGABE_NICHT_ERKANNT)
 
         if phone_number and incoming_message:
@@ -102,10 +116,10 @@ def whatsapp_message():
             del session[phone_number]
             MessageProvider.send_message(phone_number_id, phone_number, EINGABE_NICHT_ERKANNT)
 
-        logger.info(f"Final Session: {session.get(phone_number)}")
+        log_message(f"Final Session: {session.get(phone_number)}")
         return {"status": "OK"}, 200
     except Exception as e:
-        logger.exception(f"Error while handling message. {e}")
+        log_exception(e)
         return {"status": "Error handling message"}, 200
 
 
@@ -131,7 +145,7 @@ def handle_message(phone_number_id, phone_number, message: str, current_state: s
 def handle_initial_state(message, phone_number_id, phone_number):
     match message:
         case "start" | "Start":
-            logger.info(f"Sending initial message to {phone_number}")
+            log_message(f"Sending initial message to {phone_number}")
             MessageProvider.send_inital_message(phone_number_id, phone_number)
         case "Spieler hinzufügen":
             session[phone_number]["state"] = UserState.ADD_PLAYER.value
@@ -142,6 +156,7 @@ def handle_initial_state(message, phone_number_id, phone_number):
                 name = ratingSystem.delete_player(phone_number)
                 MessageProvider.send_message(phone_number_id, phone_number, f"Spieler {name} erfolgreich gelöscht.")
             except PlayerNotFoundException as e:
+                log_exception(e)
                 MessageProvider.send_message(phone_number_id, phone_number, f"Fehler: {e}")
         case "Spiel hinzufügen":
             session[phone_number]["state"] = UserState.ADD_GAME.value
@@ -160,7 +175,8 @@ def handle_initial_state(message, phone_number_id, phone_number):
             try:
                 url = ratingSystem.rating_image()
                 MessageProvider.send_image(phone_number_id, phone_number, url)
-            except:
+            except Exception as e:
+                log_exception(e)
                 MessageProvider.send_message(
                     phone_number_id,
                     phone_number,
@@ -204,7 +220,7 @@ def handle_add_game(message, phone_number_id, phone_number):
         nameA, nameB = names.strip().split(":")
         scores = [tuple(map(int, match)) for match in re.findall(r"\b(\d+)[ \t]*:[ \t]*(\d+)\b", message)]
 
-        logger.info(f"Identified matches: {game_type}, {names}, {scores}")
+        log_message(f"Identified matches: {game_type}, {names}, {scores}")
 
         changes = ratingSystem.add_games(nameA, nameB, scores, game_type, phone_number)
 
@@ -226,19 +242,25 @@ def handle_add_game(message, phone_number_id, phone_number):
         try:
             url = ratingSystem.rating_image()
             MessageProvider.send_image(phone_number_id, phone_number, url)
-        except:
+        except Exception as e:
+            log_exception(e)
             MessageProvider.send_message(
                 phone_number_id, phone_number, f"Rating konnte nicht aktualisiert werden. Wende dich an den Admin."
             )
     except PlayerNotFoundException as e:
+        log_exception(e)
         MessageProvider.send_message(phone_number_id, phone_number, f"Fehler: {e}")
     except PlayerNotInRatingException as e:
+        log_exception(e)
         MessageProvider.send_message(phone_number_id, phone_number, f"Fehler: {e}")
     except PlayerNotInGameException as e:
+        log_exception(e)
         MessageProvider.send_message(phone_number_id, phone_number, f"Fehler: {e}")
     except GameTypeNotSupportedException as e:
+        log_exception(e)
         MessageProvider.send_message(phone_number_id, phone_number, f"Fehler: {e}")
     except PendingRollbackError as e:
+        log_exception(e)
         MessageProvider.send_message(phone_number_id, phone_number, f"Fehler: {e}")
 
 
@@ -252,8 +274,10 @@ def handle_delete_game(
         ratingSystem.delete_game(id, phone_number)
         MessageProvider.send_message(phone_number_id, phone_number, f"Spiel {id} erfolgreich gelöscht.")
     except GameNotFoundException as e:
+        log_exception(e)
         MessageProvider.send_message(phone_number_id, phone_number, f"Fehler: {e}")
     except PlayerNotInGameException as e:
+        log_exception(e)
         MessageProvider.send_message(phone_number_id, phone_number, f"Fehler: {e}")
 
 
@@ -277,10 +301,13 @@ def handle_admin_message(message: str, phone_number_id: str, phone_number: str):
                 ratingSystem.add_player_to_rating(phone_number)
                 MessageProvider.send_message(phone_number_id, phone_number, f"Spieler {name} erfolgreich hinzugefügt.")
             except PlayerAlreadyExistsException as e:
+                log_exception(e)
                 MessageProvider.send_message(phone_number_id, phone_number, f"Fehler: {e}")
             except PlayerNotFoundException as e:
+                log_exception(e)
                 MessageProvider.send_message(phone_number_id, phone_number, f"Fehler: {e}")
             except PlayerAlreadyInRatingException as e:
+                log_exception(e)
                 MessageProvider.send_message(phone_number_id, phone_number, f"Fehler: {e}")
         case "delete player":
             handle_delete_player(message.splitlines()[1])
@@ -294,6 +321,7 @@ def handle_delete_player(name: str, phone_number_id: str, phone_number: str):
         ratingSystem.delete_player(phone_number, name=name)
         MessageProvider.send_message(phone_number_id, phone_number, f"Spieler {name} erfolgreich gelöscht.")
     except PlayerNotFoundException as e:
+        log_exception(e)
         MessageProvider.send_message(phone_number_id, phone_number, f"Fehler: {e}")
 
 
@@ -307,10 +335,13 @@ def handle_adjust_rating(lines: list[str], phone_number_id: str, phone_number: s
         ratingSystem.adjust_rating(name, rating, games_won, games_lost)
         MessageProvider.send_message(phone_number_id, phone_number, f"Rating für {name} erfolgreich angepasst.")
     except PlayerNotFoundException as e:
+        log_exception(e)
         MessageProvider.send_message(phone_number_id, phone_number, f"Fehler: {e}")
     except PlayerNotInRatingException as e:
+        log_exception(e)
         MessageProvider.send_message(phone_number_id, phone_number, f"Fehler: {e}")
     except ValueError as e:
+        log_exception(e)
         MessageProvider.send_message(phone_number_id, phone_number, f"Fehler: {e}")
 
 
