@@ -2,18 +2,18 @@ import logging
 from flask import Flask, request
 import re
 from waitress import serve
-from exceptions import *
+from utils.exceptions import *
 from os import environ
 from message_provider import MessageProvider
-from constants import EINGABE_NICHT_ERKANNT, HELP_COMMAND
+from utils.constants import EINGABE_NICHT_ERKANNT, HELP_COMMAND
 from dotenv import load_dotenv
-from enums import UserState
+from utils.enums import UserState
 from sqlalchemy.exc import PendingRollbackError
 import sentry_sdk
 from sentry_sdk import capture_exception, set_user
 from sentry_sdk.integrations.logging import LoggingIntegration
-from flask_sqlalchemy import SQLAlchemy
 from app import app, db
+from apscheduler.schedulers.background import BackgroundScheduler
 
 
 logging.basicConfig(
@@ -50,6 +50,16 @@ ratingSystem = RatingSystem(db=db)
 @app.route("/")
 def test():
     return "<pre>Nothing to see here. Checkout README.md to start.</pre>"
+
+
+@app.route("/export-rating", methods=["GET"])
+def export_database():
+    try:
+        ratingSystem.export_database()
+        return "Database exported successfully."
+    except Exception as e:
+        capture_exception(e)
+        return "Error exporting database."
 
 
 @app.get("/whatsapp")
@@ -362,4 +372,11 @@ def handle_adjust_rating(lines: list[str], phone_number_id: str, phone_number: s
 
 
 if __name__ == "__main__":
-    serve(app, host="0.0.0.0", port=8080)
+    scheduler = BackgroundScheduler()
+    scheduler.add_job(func=export_database, trigger="interval", hours=12)
+    scheduler.start()
+
+    try:
+        serve(app, host="0.0.0.0", port=8080)
+    except (KeyboardInterrupt, SystemExit):
+        scheduler.shutdown()

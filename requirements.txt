@@ -1,7 +1,6 @@
 pandas
 dataframe-image
 matplotlib
-twilio
 flask
 Flask-SQLAlchemy
 sqlalchemy
@@ -15,3 +14,4 @@ python-Levenshtein
 sentry-sdk
 sentry-sdk[flask]
 sentry-sdk[sqlalchemy]
+apscheduler

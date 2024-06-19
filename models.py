@@ -1,10 +1,10 @@
 import uuid
 import random
 from datetime import datetime
-from enums import GameType
-from constants import RATING_FACTOR, K_FACTOR
+from utils.enums import GameType
+from utils.constants import RATING_FACTOR, K_FACTOR
 from math import floor
-from exceptions import GameTypeNotSupportedException
+from utils.exceptions import GameTypeNotSupportedException
 import logging
 from app import db
 

@@ -1,16 +1,17 @@
-from exceptions import *
+from utils.exceptions import *
 from datetime import datetime
 import pandas as pd
 import dataframe_image as dfi
 from sqlalchemy import func
 from models import Player, Rating, Game
-from constants import BASIS_POINTS
+from utils.constants import BASIS_POINTS
 import logging
 from os import environ
 from sqlalchemy.exc import NoResultFound
 from supabase import create_client, Client
 from dotenv import load_dotenv
 from fuzzywuzzy import fuzz, process
+import zipfile
 
 
 class RatingSystem:
@@ -267,6 +268,74 @@ class RatingSystem:
 
             res = ratingBucket.get_public_url("rating.png")
             logging.info("Das Rating-Tabellenbild wurde exportiert.")
+            return res
+
+    def export_database(self):
+        # Upload to storage
+        storage = self.supabase.storage
+        buckets = storage.get_bucket("backup")
+        if not buckets:
+            storage.create_bucket("backup")
+            logging.info("Ein neuer Bucket für das Backup wurde erstellt.")
+
+        backup_bucket = storage.from_("backup")
+
+        # Delete backups older than 7 days
+        files = backup_bucket.list_files()
+        for file in files:
+            if (datetime.now() - datetime.strptime(file["last_modified"], "%Y-%m-%dT%H:%M:%S.%fZ")).days > 7:
+                backup_bucket.remove(file["name"])
+                logging.info(f"Backup {file['name']} wurde gelöscht.")
+
+        # Fetch all ratings and games
+        ratings = self.session.query(Rating).all()
+        games = self.session.query(Game).all()
+
+        # create csv from ratings and games
+        rating_df = pd.DataFrame(
+            [
+                {"player": rating.player, "rating": rating.rating, "games_won": rating.games_won, "games_lost": rating.games_lost}
+                for rating in ratings
+            ]
+        )
+        game_df = pd.DataFrame(
+            [
+                {
+                    "playerA": game.playerA,
+                    "playerB": game.playerB,
+                    "scoreA": game.scoreA,
+                    "scoreB": game.scoreB,
+                    "race_to": game.race_to,
+                    "disciplin": game.disciplin,
+                    "rating_change": game.rating_change,
+                }
+                for game in games
+            ]
+        )
+
+        # Export to csv
+        rating_df.to_csv("ratings.csv", index=False)
+        game_df.to_csv("games.csv", index=False)
+
+        # Create zip from csvs
+        with zipfile.ZipFile("backup.zip", "w") as zf:
+            zf.write("ratings.csv")
+            zf.write("games.csv")
+
+        # delete csvs
+        import os
+
+        os.remove("ratings.csv")
+        os.remove("games.csv")
+
+        # Upload to storage with timestamp
+        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+
+        with open("backup.zip", "rb") as f:
+            backup_bucket.upload(path=f"backup_{timestamp}.zip", file=f, file_options={"content-type": "application/zip"})
+
+            res = backup_bucket.get_public_url(f"backup_{timestamp}.zip")
+            logging.info("Die Datenbank wurde exportiert.")
             return res
 
     def adjust_rating(self, name, rating, games_won, games_lost, phone_number=None):
