@@ -13,6 +13,8 @@ from sqlalchemy.exc import PendingRollbackError
 import sentry_sdk
 from sentry_sdk import capture_exception, set_user
 from sentry_sdk.integrations.logging import LoggingIntegration
+from flask_sqlalchemy import SQLAlchemy
+
 
 logging.basicConfig(
     level=logging.INFO,
@@ -21,7 +23,7 @@ logging.basicConfig(
 )
 
 sentry_logging = LoggingIntegration(
-    level=logging.INFO, event_level=logging.ERROR  # Capture info and above as breadcrumbs  # Send errors as events
+    level=logging.INFO, event_level=logging.INFO  # Capture info and above as breadcrumbs  # Send errors as events
 )
 
 load_dotenv()
@@ -38,8 +40,16 @@ sentry_sdk.init(
     integrations=[sentry_logging],
 )
 
-
+username = environ["SUPABASE_USER"]
+password = environ["SUPABASE_PASSWORD"]
+host = environ["SUPABASE_HOST"]
+port = environ["SUPABASE_PORT"]
+dbname = environ["SUPABASE_NAME"]
 app = Flask(__name__)
+app.config["SQLALCHEMY_DATABASE_URI"] = f"postgresql+psycopg2://{username}:{password}@{host}:{port}/{dbname}"
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+db = SQLAlchemy(app)
+
 session = dict()
 ratingSystem = RatingSystem()
 

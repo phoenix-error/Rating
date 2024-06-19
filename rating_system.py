@@ -1,21 +1,10 @@
-from enums import Liga, GameType
 from exceptions import *
 from datetime import datetime
-from math import floor
 import pandas as pd
 import dataframe_image as dfi
-from sqlalchemy import create_engine, func, event
-from sqlalchemy.orm import sessionmaker
-from models import Base, Player, Rating, Game
-from constants import (
-    BASIS_POINTS,
-    RATING_MULTIPLIER,
-    RATING_FACTOR,
-    K_FACTOR,
-    WIN_POINTS,
-    MAX_RATING,
-    MIN_RATING,
-)
+from sqlalchemy import func
+from models import Player, Rating, Game
+from constants import BASIS_POINTS
 import logging
 from os import environ
 from sqlalchemy.exc import NoResultFound
@@ -25,17 +14,9 @@ from fuzzywuzzy import fuzz, process
 
 
 class RatingSystem:
-    def __init__(self):
+    def __init__(self, db):
         load_dotenv()
-        username = environ["SUPABASE_USER"]
-        password = environ["SUPABASE_PASSWORD"]
-        host = environ["SUPABASE_HOST"]
-        port = environ["SUPABASE_PORT"]
-        dbname = environ["SUPABASE_NAME"]
-        self.engine = create_engine(f"postgresql+psycopg2://{username}:{password}@{host}:{port}/{dbname}")
-        Base.metadata.create_all(self.engine)
-        self.Session = sessionmaker(bind=self.engine)
-        self.session = self.Session()
+        self.session = db.session
 
         url: str = environ["SUPABASE_URL"]
         key: str = environ["SUPABASE_KEY"]

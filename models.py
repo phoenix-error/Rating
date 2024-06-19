@@ -1,6 +1,3 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, Float, Date, UUID, event
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import relationship, backref
 import uuid
 import random
 from datetime import datetime
@@ -9,8 +6,8 @@ from constants import RATING_FACTOR, K_FACTOR
 from math import floor
 from exceptions import GameTypeNotSupportedException
 import logging
+from rating_app import db
 
-Base = declarative_base()
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(
@@ -20,60 +17,60 @@ logging.basicConfig(
 )
 
 
-class Player(Base):
+class Player(db):
     __tablename__ = "players"
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    name = Column(String, nullable=False)
-    phone_number = Column(String, nullable=False, unique=True)
+    id = db.Column(db.db.UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name = db.Column(db.String, nullable=False)
+    phone_number = db.Column(db.String, nullable=False, unique=True)
 
-    games = relationship("Game", primaryjoin="or_(Player.id==Game.playerA, Player.id==Game.playerB)")
+    games = db.relationship("Game", primaryjoin="or_(Player.id==Game.playerA, Player.id==Game.playerB)")
 
 
-class Rating(Base):
+class Rating(db):
     __tablename__ = "ratings"
-    player = Column(UUID, ForeignKey("players.id", ondelete="CASCADE"), primary_key=True)
-    rating = Column(Float, nullable=False)
-    winning_quote = Column(Float, nullable=True)
-    games_won = Column(Integer, nullable=False, default=0)
-    games_lost = Column(Integer, nullable=False, default=0)
-    last_change = Column(Date, nullable=False, onupdate=datetime.now)
+    player = db.Column(db.UUID, db.ForeignKey("players.id", ondelete="CASCADE"), primary_key=True)
+    rating = db.Column(db.Float, nullable=False)
+    winning_quote = db.Column(db.Float, nullable=True)
+    games_won = db.Column(db.Integer, nullable=False, default=0)
+    games_lost = db.Column(db.Integer, nullable=False, default=0)
+    last_change = db.Column(db.Date, nullable=False, onupdate=datetime.now)
 
 
-class Game(Base):
+class Game(db):
     __tablename__ = "games"
-    id = Column(String, primary_key=True)
-    playerA = Column(UUID, ForeignKey("players.id"))
-    playerB = Column(UUID, ForeignKey("players.id"))
-    scoreA = Column(Integer, nullable=False)
-    scoreB = Column(Integer, nullable=False)
-    race_to = Column(Integer, nullable=False)
-    disciplin = Column(String, nullable=False)
-    rating_change = Column(Float, nullable=False)
+    id = db.Column(db.String, primary_key=True)
+    playerA = db.Column(db.UUID, db.ForeignKey("players.id"))
+    playerB = db.Column(db.UUID, db.ForeignKey("players.id"))
+    scoreA = db.Column(db.Integer, nullable=False)
+    scoreB = db.Column(db.Integer, nullable=False)
+    race_to = db.Column(db.Integer, nullable=False)
+    disciplin = db.Column(db.String, nullable=False)
+    rating_change = db.Column(db.db.Float, nullable=False)
 
     @staticmethod
-    def generate_unique_id(session):
+    def generate_unique_id():
         while True:
             game_id = f"#{random.randint(0, 999999):06}"
-            if not session.query(Game).filter_by(id=game_id).first():
+            if not db.session.query(Game).filter_by(id=game_id).first():
                 return game_id
 
-    def __init__(self, playerA, playerB, scoreA, scoreB, race_to, disciplin, session):
-        self.id = Game.generate_unique_id(session)
+    def __init__(self, playerA, playerB, scoreA, scoreB, race_to, disciplin):
+        self.id = Game.generate_unique_id()
         self.playerA = playerA
         self.playerB = playerB
         self.scoreA = scoreA
         self.scoreB = scoreB
         self.race_to = race_to
         self.disciplin = disciplin
-        self.rating_change = self.calculate_rating(session)
-        self.adjust_ratings(session)
+        self.rating_change = self.calculate_rating()
+        self.adjust_ratings()
 
-    def calculate_rating(self, session) -> float:
-        playerA_rating = session.query(Rating).filter_by(player=self.playerA).first().rating
-        playerB_rating = session.query(Rating).filter_by(player=self.playerB).first().rating
+    def calculate_rating(self) -> float:
+        playerA_rating = db.session.query(Rating).filter_by(player=self.playerA).first().rating
+        playerB_rating = db.session.query(Rating).filter_by(player=self.playerB).first().rating
 
-        playerA = session.query(Player).filter_by(id=self.playerA).first()
-        playerB = session.query(Player).filter_by(id=self.playerB).first()
+        playerA = db.session.query(Player).filter_by(id=self.playerA).first()
+        playerB = db.session.query(Player).filter_by(id=self.playerB).first()
 
         calc_element = 1 / (1 + pow(10, ((playerB_rating - playerA_rating) / RATING_FACTOR)))
 
@@ -99,13 +96,13 @@ class Game(Base):
 
         return rating_change
 
-    def adjust_ratings(self, session):
+    def adjust_ratings(self):
         try:
-            ratingA = session.query(Rating).filter_by(player=self.playerA).first()
-            ratingB = session.query(Rating).filter_by(player=self.playerB).first()
+            ratingA = db.session.query(Rating).filter_by(player=self.playerA).first()
+            ratingB = db.session.query(Rating).filter_by(player=self.playerB).first()
 
-            playerA = session.query(Player).filter_by(id=self.playerA).first()
-            playerB = session.query(Player).filter_by(id=self.playerB).first()
+            playerA = db.session.query(Player).filter_by(id=self.playerA).first()
+            playerB = db.session.query(Player).filter_by(id=self.playerB).first()
 
             ratingA.games_won += self.scoreA
             ratingA.games_lost += self.scoreB
@@ -131,6 +128,6 @@ class Game(Base):
             logger.info(f"Rating für Spieler {playerA.name} und {playerB.name} aktualisiert.")
 
         except:
-            session.rollback()
+            db.session.rollback()
         else:
-            session.commit()
+            db.session.commit()
