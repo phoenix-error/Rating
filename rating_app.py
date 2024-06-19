@@ -11,8 +11,14 @@ from dotenv import load_dotenv
 from enums import UserState
 from sqlalchemy.exc import PendingRollbackError
 import sentry_sdk
-from sentry_sdk import capture_exception, capture_message, set_user
+from sentry_sdk import capture_exception, set_user
 from sentry_sdk.integrations.logging import LoggingIntegration
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(message)s",
+    force=True,
+)
 
 sentry_logging = LoggingIntegration(
     level=logging.INFO, event_level=logging.ERROR  # Capture info and above as breadcrumbs  # Send errors as events
@@ -49,7 +55,7 @@ def verify_webhook():
     token = request.args.get("hub.verify_token")
     challenge = request.args.get("hub.challenge")
 
-    capture_message(f"Received request with mode: {mode}, token: {token}, challenge: {challenge}")
+    logging.info(f"Received request with mode: {mode}, token: {token}, challenge: {challenge}")
 
     # Check if a token and mode are in the query string
     if mode and token:
@@ -95,9 +101,9 @@ def whatsapp_message():
         message = value["messages"][0]
         phone_number = message["from"]
         set_user({"id": phone_number, "username": username})
-        capture_message(f"Received message: {message} with phone number id: {phone_number_id}")
+        logging.info(f"Received message: {message} with phone number id: {phone_number_id}")
 
-        capture_message(f"Inital Session: {session.get(phone_number)}")
+        logging.info(f"Inital Session: {session.get(phone_number)}")
 
         match message["type"]:
             case "text":
@@ -106,10 +112,10 @@ def whatsapp_message():
                 if message["interactive"]["type"] == "list_reply":
                     incoming_message = message["interactive"]["list_reply"]["title"]
                 else:
-                    capture_message(f"Interactive message type not supported: {message}")
+                    logging.info(f"Interactive message type not supported: {message}")
                     MessageProvider.send_message(phone_number_id, phone_number, EINGABE_NICHT_ERKANNT)
             case _:
-                capture_message(f"Message type not supported: {message}")
+                logging.info(f"Message type not supported: {message}")
                 MessageProvider.send_message(phone_number_id, phone_number, EINGABE_NICHT_ERKANNT)
 
         if phone_number and incoming_message:
@@ -121,7 +127,7 @@ def whatsapp_message():
             del session[phone_number]
             MessageProvider.send_message(phone_number_id, phone_number, EINGABE_NICHT_ERKANNT)
 
-        capture_message(f"Final Session: {session.get(phone_number)}")
+        logging.info(f"Final Session: {session.get(phone_number)}")
         set_user(None)
         return {"status": "OK"}, 200
     except Exception as e:
@@ -152,7 +158,7 @@ def handle_message(phone_number_id, phone_number, message: str, current_state: s
 def handle_initial_state(message, phone_number_id, phone_number):
     match message:
         case "start" | "Start":
-            capture_message(f"Sending initial message to {phone_number}")
+            logging.info(f"Sending initial message to {phone_number}")
             MessageProvider.send_inital_message(phone_number_id, phone_number)
         case "Spieler hinzufügen":
             session[phone_number]["state"] = UserState.ADD_PLAYER.value
@@ -227,7 +233,7 @@ def handle_add_game(message, phone_number_id, phone_number):
         nameA, nameB = names.strip().split(":")
         scores = [tuple(map(int, match)) for match in re.findall(r"\b(\d+)[ \t]*:[ \t]*(\d+)\b", message)]
 
-        capture_message(f"Identified matches: {game_type}, {names}, {scores}")
+        logging.info(f"Identified matches: {game_type}, {names}, {scores}")
 
         changes = ratingSystem.add_games(nameA, nameB, scores, game_type, phone_number)
 
