@@ -12,3 +12,6 @@ waitress
 python-dotenv
 fuzzywuzzy
 python-Levenshtein
+sentry-sdk
+sentry-sdk[flask]
+sentry-sdk[sqlalchemy]
