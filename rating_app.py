@@ -4,7 +4,6 @@ import re
 from waitress import serve
 from exceptions import *
 from os import environ
-from rating_system import RatingSystem
 from message_provider import MessageProvider
 from constants import EINGABE_NICHT_ERKANNT, HELP_COMMAND
 from dotenv import load_dotenv
@@ -54,6 +53,9 @@ with app.app_context():
     db.create_all()
 
 session = dict()
+
+from rating_system import RatingSystem
+
 ratingSystem = RatingSystem(db=db)
 
 
