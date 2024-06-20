@@ -283,8 +283,10 @@ class RatingSystem:
         # Delete backups older than 7 days
         files = backup_bucket.list()
 
+        timestamp_format = "%D. %M, %Y_%H-%M-%S"
+
         for file in files:
-            timestamp = datetime.strptime(file["name"].split("_")[1].split(".")[0], "%Y-%m-%d_%H-%M-%S")
+            timestamp = datetime.strptime(file["name"].split("_")[1].split(".")[0], timestamp_format)
             if (datetime.now() - timestamp).days > 7:
                 backup_bucket.remove(file["name"])
                 logging.info(f"Backup {file['name']} wurde gelöscht.")
@@ -331,7 +333,7 @@ class RatingSystem:
         os.remove("games.csv")
 
         # Upload to storage with timestamp
-        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        timestamp = datetime.now().strftime(timestamp_format)
 
         with open("backup.zip", "rb") as f:
             backup_bucket.upload(path=f"backup_{timestamp}.zip", file=f, file_options={"content-type": "application/zip"})
