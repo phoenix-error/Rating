@@ -22,9 +22,7 @@ logging.basicConfig(
     force=True,
 )
 
-sentry_logging = LoggingIntegration(
-    level=logging.INFO, event_level=logging.INFO  # Capture info and above as breadcrumbs  # Send errors as events
-)
+sentry_logging = LoggingIntegration(level=logging.INFO, event_level=logging.CRITICAL)
 
 load_dotenv()
 
