@@ -50,16 +50,6 @@ def test():
     return "<pre>Nothing to see here. Checkout README.md to start.</pre>"
 
 
-@app.route("/export-rating", methods=["GET"])
-def export_database():
-    try:
-        ratingSystem.export_database()
-        return "Database exported successfully."
-    except Exception as e:
-        capture_exception(e)
-        return "Error exporting database."
-
-
 @app.get("/whatsapp")
 def verify_webhook():
     mode = request.args.get("hub.mode")
@@ -312,6 +302,8 @@ def handle_admin_message(message: str, phone_number_id: str, phone_number: str):
         return
 
     match message.splitlines()[0]:
+        case "backup":
+            export_database()
         case "adjust rating":
             handle_adjust_rating(message.splitlines()[1:])
         case "add player":
@@ -369,9 +361,18 @@ def handle_adjust_rating(lines: list[str], phone_number_id: str, phone_number: s
         MessageProvider.send_message(phone_number_id, phone_number, f"Fehler: {e}")
 
 
+def export_database():
+    try:
+        ratingSystem.export_database()
+        return "Database exported successfully."
+    except Exception as e:
+        capture_exception(e)
+        return "Error exporting database."
+
+
 if __name__ == "__main__":
     scheduler = BackgroundScheduler()
-    scheduler.add_job(func=export_database, trigger="interval", hours=12)
+    scheduler.add_job(func=export_database, trigger="interval", hours=1)
     scheduler.start()
 
     try:
