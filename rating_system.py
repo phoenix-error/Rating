@@ -259,7 +259,7 @@ class RatingSystem:
             storage.create_bucket("rating", options={"public": True})
             logging.info("Ein neuer Bucket für das Rating-Tabellenbild wurde erstellt.")
         except:
-            self.logger.info("Bucket für das Rating-Tabellenbild bereits vorhanden.")
+            logging.info("Bucket für das Rating-Tabellenbild bereits vorhanden.")
 
         ratingBucket = storage.from_("rating")
 
