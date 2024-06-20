@@ -6,7 +6,7 @@ from sqlalchemy import func
 from models import Player, Rating, Game
 from utils.constants import BASIS_POINTS
 import logging
-from os import environ
+from os import environ, remove
 from sqlalchemy.exc import NoResultFound
 from supabase import create_client, Client
 from dotenv import load_dotenv
@@ -280,13 +280,18 @@ class RatingSystem:
             logging.info("Bucket für das Backup bereits vorhanden.")
 
         backup_bucket = storage.from_("backup")
+
         # Delete backups older than 7 days
         files = backup_bucket.list()
-
-        timestamp_format = "%D. %M, %Y_%H-%M-%S"
+        timestamp_format = "%Y-%m-%d %H:%M:%S"
+        logging.info(files)
 
         for file in files:
-            timestamp = datetime.strptime(file["name"].split("_")[1].split(".")[0], timestamp_format)
+            file_name = file["name"]
+            if file_name == ".emptyFolderPlaceholder":
+                continue
+            timestamp = file_name.split("_")[1].split(".")[0]
+            timestamp = datetime.strptime(timestamp, timestamp_format)
             if (datetime.now() - timestamp).days > 7:
                 backup_bucket.remove(file["name"])
                 logging.info(f"Backup {file['name']} wurde gelöscht.")
@@ -295,7 +300,7 @@ class RatingSystem:
         ratings = self.session.query(Rating).all()
         games = self.session.query(Game).all()
 
-        # create csv from ratings and games
+        # Create csv from ratings and games
         rating_df = pd.DataFrame(
             [
                 {"player": rating.player, "rating": rating.rating, "games_won": rating.games_won, "games_lost": rating.games_lost}
@@ -326,21 +331,17 @@ class RatingSystem:
             zf.write("ratings.csv")
             zf.write("games.csv")
 
-        # delete csvs
-        import os
-
-        os.remove("ratings.csv")
-        os.remove("games.csv")
-
         # Upload to storage with timestamp
         timestamp = datetime.now().strftime(timestamp_format)
 
         with open("backup.zip", "rb") as f:
             backup_bucket.upload(path=f"backup_{timestamp}.zip", file=f, file_options={"content-type": "application/zip"})
-
-            res = backup_bucket.get_public_url(f"backup_{timestamp}.zip")
             logging.info("Die Datenbank wurde exportiert.")
-            return res
+
+            # Delete local files
+            remove("ratings.csv")
+            remove("games.csv")
+            remove("backup.zip")
 
     def adjust_rating(self, name, rating, games_won, games_lost, phone_number=None):
         if phone_number and phone_number != environ["ADMIN_PHONE_NUMBER"]:

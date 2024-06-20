@@ -50,6 +50,11 @@ def test():
     return "<pre>Nothing to see here. Checkout README.md to start.</pre>"
 
 
+@app.route("/export")
+def export():
+    return export_database()
+
+
 @app.get("/whatsapp")
 def verify_webhook():
     mode = request.args.get("hub.mode")
@@ -366,14 +371,12 @@ def export_database(phone_number_id=None, phone_number=None):
         ratingSystem.export_database()
         if phone_number_id and phone_number:
             MessageProvider.send_message(phone_number_id, phone_number, "Database exported successfully.")
-        else:
-            return "Database exported successfully."
+        return "Database exported successfully."
     except Exception as e:
         capture_exception(e)
         if phone_number_id and phone_number:
             MessageProvider.send_message(phone_number_id, phone_number, "Error exporting database.")
-        else:
-            return "Error exporting database."
+        return "Error exporting database."
 
 
 if __name__ == "__main__":
