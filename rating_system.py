@@ -165,7 +165,6 @@ class RatingSystem:
             scoreB=scoreB,
             race_to=max(scoreA, scoreB),
             disciplin=game_type,
-            session=self.session,
         )
         self.session.add(new_game)
         self.session.commit()
@@ -283,7 +282,7 @@ class RatingSystem:
 
         # Delete backups older than 7 days
         files = backup_bucket.list()
-        timestamp_format = "%Y-%m-%d %H:%M:%S"
+        timestamp_format = "%Y-%m-%d%H:%M:%S"
         logging.info(files)
 
         for file in files:
