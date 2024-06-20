@@ -284,12 +284,10 @@ class RatingSystem:
         files = backup_bucket.list()
 
         for file in files:
-            logging.info(files)
-        """
-        if (datetime.now() - datetime.strptime(file["last_modified"], "%Y-%m-%dT%H:%M:%S.%fZ")).days > 7:
+            timestamp = datetime.strptime(file["name"].split("_")[1].split(".")[0], "%Y-%m-%d_%H-%M-%S")
+            if (datetime.now() - timestamp).days > 7:
                 backup_bucket.remove(file["name"])
                 logging.info(f"Backup {file['name']} wurde gelöscht.")
-        """
 
         # Fetch all ratings and games
         ratings = self.session.query(Rating).all()
