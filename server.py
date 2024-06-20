@@ -303,7 +303,7 @@ def handle_admin_message(message: str, phone_number_id: str, phone_number: str):
 
     match message.splitlines()[0]:
         case "backup":
-            export_database()
+            export_database(phone_number_id, phone_number)
         case "adjust rating":
             handle_adjust_rating(message.splitlines()[1:])
         case "add player":
@@ -361,13 +361,19 @@ def handle_adjust_rating(lines: list[str], phone_number_id: str, phone_number: s
         MessageProvider.send_message(phone_number_id, phone_number, f"Fehler: {e}")
 
 
-def export_database():
+def export_database(phone_number_id=None, phone_number=None):
     try:
         ratingSystem.export_database()
-        return "Database exported successfully."
+        if phone_number_id and phone_number:
+            MessageProvider.send_message(phone_number_id, phone_number, "Database exported successfully.")
+        else:
+            return "Database exported successfully."
     except Exception as e:
         capture_exception(e)
-        return "Error exporting database."
+        if phone_number_id and phone_number:
+            MessageProvider.send_message(phone_number_id, phone_number, "Error exporting database.")
+        else:
+            return "Error exporting database."
 
 
 if __name__ == "__main__":
