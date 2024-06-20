@@ -50,11 +50,6 @@ def test():
     return "<pre>Nothing to see here. Checkout README.md to start.</pre>"
 
 
-@app.route("/export")
-def export():
-    return export_database()
-
-
 @app.get("/whatsapp")
 def verify_webhook():
     mode = request.args.get("hub.mode")
