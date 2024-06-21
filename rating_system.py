@@ -227,7 +227,6 @@ class RatingSystem:
         # Query
         query = self.session.query(
             func.row_number().over(order_by=Rating.rating.desc()).label("Platz"),
-            Player.name.label("Namen"),
             Rating.rating.label("Rating"),
             Rating.winning_quote.label("Gewinnquote (%)"),
             Rating.games_won.label("Spiele (G)"),
@@ -282,7 +281,7 @@ class RatingSystem:
 
         # Delete backups older than 7 days
         files = backup_bucket.list()
-        timestamp_format = "%Y-%m-%d%H:%M:%S"
+        timestamp_format = "%Y-%m-%d %H:%M:%S"
         logging.info(files)
 
         for file in files:
