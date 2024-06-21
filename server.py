@@ -138,9 +138,6 @@ def whatsapp_message():
 
 
 def handle_message(phone_number_id, phone_number, message: str, current_state: str):
-    if message.lower().startswith("admin"):
-        current_state = UserState.ADMIN.value
-
     match current_state:
         case UserState.ADMIN.value:
             handle_admin_message(message.replace("admin", "").strip(), phone_number_id, phone_number)
@@ -159,6 +156,14 @@ def handle_message(phone_number_id, phone_number, message: str, current_state: s
 
 def handle_initial_state(message, phone_number_id, phone_number):
     match message:
+        case "admin" | "Admin":
+            if phone_number != environ["ADMIN_PHONE_NUMBER"]:
+                MessageProvider.send_message(
+                    phone_number_id, phone_number, "Du hast keine Berechtigung, diese Aktion auszuführen."
+                )
+                return
+            session[phone_number]["state"] = UserState.ADMIN.value
+            MessageProvider.send_message(phone_number_id, phone_number, "Bitte geben Sie das Admin-Kommando ein.")
         case "start" | "Start":
             logging.info(f"Sending initial message to {phone_number}")
             MessageProvider.send_inital_message(phone_number_id, phone_number)
