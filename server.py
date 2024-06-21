@@ -252,15 +252,6 @@ def handle_add_game(message, phone_number_id, phone_number):
                 message += f"Spiel {i+1}:\nID: {id}. Änderung: {rating_change:.2f}\n"
 
             MessageProvider.send_message(phone_number_id, phone_number, message)
-
-        try:
-            url = ratingSystem.rating_image()
-            MessageProvider.send_image(phone_number_id, phone_number, url)
-        except Exception as e:
-            capture_exception(e)
-            MessageProvider.send_message(
-                phone_number_id, phone_number, f"Rating konnte nicht aktualisiert werden. Wende dich an den Admin."
-            )
     except PlayerNotFoundException as e:
         capture_exception(e)
         MessageProvider.send_message(phone_number_id, phone_number, f"Fehler: {e}")
