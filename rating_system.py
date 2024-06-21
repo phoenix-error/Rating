@@ -225,16 +225,18 @@ class RatingSystem:
         """
 
         # Query
-        query = self.session.query(
-            func.row_number().over(order_by=Rating.rating.desc()).label("Platz"),
-            Rating.rating.label("Rating"),
-            Rating.winning_quote.label("Gewinnquote (%)"),
-            Rating.games_won.label("Spiele (G)"),
-            Rating.games_lost.label("Spiele (V)"),
-            Rating.last_change.label("Letze Änderung"),
-        ).join(Rating, Player.id == Rating.player)
-
-        result = query.all()
+        result = (
+            self.session.query(
+                func.row_number().over(order_by=Rating.rating.desc()).label("Platz"),
+                Rating.rating.label("Rating"),
+                Rating.winning_quote.label("Gewinnquote (%)"),
+                Rating.games_won.label("Spiele (G)"),
+                Rating.games_lost.label("Spiele (V)"),
+                Rating.last_change.label("Letze Änderung"),
+            )
+            .join(Rating, Player.id == Rating.player)
+            .all()
+        )
 
         # Dataframe, styling and export
         data = pd.DataFrame(result)
