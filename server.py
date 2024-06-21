@@ -298,10 +298,11 @@ def handle_admin_message(message: str, phone_number_id: str, phone_number: str):
         MessageProvider.send_message(phone_number_id, phone_number, "Du hast keine Berechtigung, diese Aktion auszuführen.")
         return
 
-    match message.strip():
-        case "backup":
+    first_line = message.splitlines()[0].lower()
+    match first_line:
+        case "backup" | "export":
             export_database(phone_number_id, phone_number)
-        case "adjust rating":
+        case "adjust rating" | "adjust":
             handle_adjust_rating(message.splitlines()[1:])
         case "add player":
             name = message.splitlines()[1]
