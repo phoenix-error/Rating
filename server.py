@@ -42,7 +42,7 @@ session = dict()
 
 from rating_system import RatingSystem
 
-ratingSystem = RatingSystem(db=db)
+ratingSystem = RatingSystem(db=db, logging=logging)
 
 
 @app.route("/")
