@@ -235,8 +235,11 @@ class RatingSystem:
                 Rating.last_change.label("Letze Änderung"),
             )
             .join(Rating, Player.id == Rating.player)
+            .order_by(Rating.rating.desc())
             .all()
         )
+
+        logging.info(result)
 
         # Dataframe, styling and export
         data = pd.DataFrame(result)
