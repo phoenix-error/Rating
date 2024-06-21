@@ -25,6 +25,7 @@ class GameType(Enum):
 
 class UserState(Enum):
     INITIAL = "initial"
+    ADMIN = "admin"
 
     ADD_PLAYER = "add_player"
 

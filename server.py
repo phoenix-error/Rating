@@ -138,19 +138,20 @@ def whatsapp_message():
 
 
 def handle_message(phone_number_id, phone_number, message: str, current_state: str):
-    if message.startswith("admin"):
-        handle_admin_message(message.replace("admin", "").strip(), phone_number_id, phone_number)
-        return
+    if message.lower().startswith("admin"):
+        current_state = UserState.ADMIN.value
 
     match current_state:
+        case UserState.ADMIN.value:
+            handle_admin_message(message.replace("admin", "").strip(), phone_number_id, phone_number)
         case UserState.INITIAL.value:
             handle_initial_state(message, phone_number_id, phone_number)
         case UserState.ADD_PLAYER.value:
             handle_add_player(message, phone_number_id, phone_number)
         case UserState.ADD_GAME.value:
-            return handle_add_game(message, phone_number_id, phone_number)
+            handle_add_game(message, phone_number_id, phone_number)
         case UserState.DELETE_GAME.value:
-            return handle_delete_game(message, phone_number_id, phone_number)
+            handle_delete_game(message, phone_number_id, phone_number)
         case _:
             session.pop(phone_number, None)
             MessageProvider.send_message(phone_number_id, phone_number, EINGABE_NICHT_ERKANNT)
@@ -292,13 +293,12 @@ def handle_admin_message(message: str, phone_number_id: str, phone_number: str):
         MessageProvider.send_message(phone_number_id, phone_number, "Du hast keine Berechtigung, diese Aktion auszuführen.")
         return
 
-    match message.splitlines()[0]:
+    match message.strip():
         case "backup":
             export_database(phone_number_id, phone_number)
         case "adjust rating":
             handle_adjust_rating(message.splitlines()[1:])
         case "add player":
-
             name = message.splitlines()[1]
             phone_number = message.splitlines()[2]
 
