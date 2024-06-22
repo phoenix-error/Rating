@@ -315,7 +315,7 @@ def handle_admin_message(message: str, phone_number_id: str, phone_number: str):
         case "backup" | "export":
             export_database(phone_number_id, phone_number)
         case "adjust rating" | "adjust":
-            handle_adjust_rating(message.splitlines()[1:])
+            handle_adjust_rating(message.splitlines()[1:], phone_number_id, phone_number)
         case "add player":
             name = message.splitlines()[1]
             phone_number = message.splitlines()[2]
@@ -335,13 +335,12 @@ def handle_admin_message(message: str, phone_number_id: str, phone_number: str):
                 capture_exception(e)
                 MessageProvider.send_message(phone_number_id, phone_number, f"Fehler: {e}")
         case "delete player":
-            handle_delete_player(message.splitlines()[1])
+            handle_delete_player(message.splitlines()[1], phone_number_id, phone_number)
         case _:
             MessageProvider.send_message(phone_number_id, phone_number, "Admin Command nicht erkannt.")
 
 
 def handle_delete_player(name: str, phone_number_id: str, phone_number: str):
-    MessageProvider.send_message(phone_number_id, phone_number, "Deleting in progress.")
     session.pop(phone_number, None)
     try:
         ratingSystem.delete_player(phone_number, name=name)
