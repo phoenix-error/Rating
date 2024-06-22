@@ -261,7 +261,7 @@ def handle_add_game(message, phone_number_id, phone_number):
         elif len(changes) == 1:
             id, rating_change = changes[0]
             MessageProvider.send_message(
-                phone_number_id, phone_number, f"Spiel hinzugefügt. ID: {id}. Ratingänderung: {rating_change}"
+                phone_number_id, phone_number, f"Spiel hinzugefügt. ID: {id}. Ratingänderung: {rating_change:.2f}"
             )
         else:
             message = "Spiele hinzugefügt.\n"
@@ -294,6 +294,8 @@ def handle_delete_game(
 ):
     session.pop(phone_number, None)
     try:
+        if not id.startswith("#"):
+            id = f"#{id}"
         ratingSystem.delete_game(id, phone_number)
         MessageProvider.send_message(phone_number_id, phone_number, f"Spiel {id} erfolgreich gelöscht.")
     except GameNotFoundException as e:

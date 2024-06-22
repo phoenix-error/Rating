@@ -196,7 +196,11 @@ class RatingSystem:
             raise PlayerNotInRatingException(playerA.name, playerB.name)
 
         ratingA.games_won -= game.scoreA
-        ratingB.games_lost -= game.scoreB
+        ratingA.games_lost -= game.scoreB
+
+        ratingB.games_won -= game.scoreB
+        ratingB.games_lost -= game.scoreA
+
         ratingA.rating -= game.rating_change
         ratingB.rating += game.rating_change
 
