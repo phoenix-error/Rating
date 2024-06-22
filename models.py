@@ -5,8 +5,7 @@ from random import randint
 from uuid import uuid4
 
 from sqlalchemy import UUID, Column, Date, Float, ForeignKey, Integer, String
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import declarative_base, relationship
 
 from utils.enums import GameType
 from utils.exceptions import GameTypeNotSupportedException
@@ -46,6 +45,7 @@ class Game(Base):
     race_to = Column(Integer, nullable=False)
     disciplin = Column(String, nullable=False)
     rating_change = Column(Float, nullable=False)
+    created_at = Column(Date, nullable=False, default=datetime.now)
 
     @staticmethod
     def generate_unique_id(session):
