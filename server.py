@@ -49,7 +49,7 @@ ratingSystem = RatingSystem()
 
 @app.route("/")
 def test():
-    return "<pre>Nothing to see here. Checkout README.md to start.</pre>"
+    return "<pre>Nothing to see here.</pre>"
 
 
 @app.route("/rating")
@@ -261,7 +261,7 @@ def handle_add_game(message, phone_number_id, phone_number):
         elif len(changes) == 1:
             id, rating_change = changes[0]
             MessageProvider.send_message(
-                phone_number_id, phone_number, f"Spiel hinzugefügt. ID: {id}. Ratingänderung: {rating_change:.2f}"
+                phone_number_id, phone_number, f"Spiel hinzugefügt.\nID: {id}.\nRatingänderung: {rating_change:.2f}"
             )
         else:
             message = "Spiele hinzugefügt.\n"
@@ -271,15 +271,12 @@ def handle_add_game(message, phone_number_id, phone_number):
 
             MessageProvider.send_message(phone_number_id, phone_number, message)
     except PlayerNotFoundException as e:
-        capture_exception(e)
         MessageProvider.send_message(phone_number_id, phone_number, f"Fehler: {e}")
     except PlayerNotInRatingException as e:
-        capture_exception(e)
-        MessageProvider.send_message(phone_number_id, phone_number, f"Fehler: {e}")
-    except PlayerNotInGameException as e:
-        capture_exception(e)
         MessageProvider.send_message(phone_number_id, phone_number, f"Fehler: {e}")
     except GameTypeNotSupportedException as e:
+        MessageProvider.send_message(phone_number_id, phone_number, f"Fehler: {e}")
+    except PlayerNotInGameException as e:
         capture_exception(e)
         MessageProvider.send_message(phone_number_id, phone_number, f"Fehler: {e}")
     except PendingRollbackError as e:
