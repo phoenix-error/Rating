@@ -62,6 +62,7 @@ class Game(Base):
         self.scoreB = scoreB
         self.race_to = race_to
         self.disciplin = disciplin
+        self.created_at = datetime.now()
         self.rating_change = self.calculate_rating(session)
         self.adjust_ratings(session)
 

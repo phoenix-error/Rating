@@ -227,7 +227,6 @@ class RatingSystem:
                 scoreB=scoreB,
                 race_to=max(scoreA, scoreB),
                 disciplin=game_type,
-                created_at=datetime.now(),
                 session=session,
             )
             session.add(new_game)
