@@ -14,6 +14,8 @@ from sentry_sdk import capture_exception, set_user
 from sentry_sdk.integrations.logging import LoggingIntegration
 from app import app, db
 from apscheduler.schedulers.background import BackgroundScheduler
+from pytz import timezone
+from apscheduler.triggers.cron import CronTrigger
 
 
 logging.basicConfig(
@@ -54,7 +56,7 @@ def test():
 def rating():
     try:
         url = ratingSystem.rating_image()
-        return url
+        return f'<img src="{url}" alt="Rating" style="width:100%;">'
     except Exception as e:
         capture_exception(e)
         return f"Rating konnte nicht aktualisiert werden. Wende dich an den Admin."
@@ -368,6 +370,9 @@ def handle_adjust_rating(lines: list[str], phone_number_id: str, phone_number: s
         MessageProvider.send_message(phone_number_id, phone_number, f"Fehler: {e}")
 
 
+# Scheduler Jobs
+
+
 def export_database(phone_number_id=None, phone_number=None):
     try:
         ratingSystem.export_database()
@@ -381,9 +386,19 @@ def export_database(phone_number_id=None, phone_number=None):
         return "Error exporting database."
 
 
+def apply_rating_decay():
+    try:
+        ratingSystem.apply_rating_decay()
+        return "Rating decay applied successfully."
+    except Exception as e:
+        capture_exception(e)
+        return "Error applying rating decay."
+
+
 if __name__ == "__main__":
     scheduler = BackgroundScheduler()
     scheduler.add_job(func=export_database, trigger="interval", hours=1)
+    scheduler.add_job(func=apply_rating_decay, trigger=CronTrigger(hour=8, minute=0, timezone=timezone("Europe/Berlin")))
     scheduler.start()
 
     try:

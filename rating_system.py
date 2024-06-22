@@ -237,8 +237,6 @@ class RatingSystem:
 
         result = query.join(Player, Player.id == Rating.player).all()
 
-        logging.error(result)
-
         # Dataframe, styling and export
         data = pd.DataFrame(result)
         data_styled = (
@@ -366,3 +364,17 @@ class RatingSystem:
 
         self.session.commit()
         self.logging.info(f"Rating von {name} wurde angepasst auf {rating}.")
+
+    def apply_rating_decay(self):
+        ratings = self.session.query(Rating).all()
+
+        # Check if rating.last_change is older than 1 month
+
+        for rating in ratings:
+            if (datetime.now() - rating.last_change).days > 30:
+                rating.rating = rating.rating * 0.97
+                rating.last_change = datetime.now()
+                self.logging.info(f"Rating von {rating.player} wurde um 3% reduziert.")
+
+        self.session.commit()
+        self.logging.info("Rating Decay wurde angewendet.")
