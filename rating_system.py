@@ -1,3 +1,4 @@
+import logging
 import zipfile
 from datetime import datetime
 from os import environ, remove
@@ -6,20 +7,33 @@ import dataframe_image as dfi
 import pandas as pd
 from dotenv import load_dotenv
 from fuzzywuzzy import fuzz, process
-from sqlalchemy import func
+from sqlalchemy import create_engine, func
 from sqlalchemy.exc import NoResultFound
+from sqlalchemy.orm import sessionmaker
 from supabase import Client, create_client
 
-from app import Game, Player, Rating
 from utils.constants import BASIS_POINTS
 from utils.exceptions import *
+from utils.models import Base, Game, Player, Rating
 
 
 class RatingSystem:
-    def __init__(self, db, logging):
+    def __init__(self):
         load_dotenv()
-        self.session = db.session
-        self.logging = logging
+        logging.basicConfig(
+            level=logging.INFO,
+            format="%(asctime)s %(levelname)s %(message)s",
+            force=True,
+        )
+        username = environ["SUPABASE_USER"]
+        password = environ["SUPABASE_PASSWORD"]
+        host = environ["SUPABASE_HOST"]
+        port = environ["SUPABASE_PORT"]
+        dbname = environ["SUPABASE_NAME"]
+        self.engine = create_engine(f"postgresql+psycopg2://{username}:{password}@{host}:{port}/{dbname}")
+        Base.metadata.create_all(self.engine)
+        self.Session = sessionmaker(bind=self.engine)
+        self.session = self.Session()
 
         url: str = environ["SUPABASE_URL"]
         key: str = environ["SUPABASE_KEY"]
@@ -30,14 +44,14 @@ class RatingSystem:
         return [row[0] for row in names]
 
     def find_closest_name(self, name) -> str:
-        self.logging.info(f"Suche nach Namen {name} in der Datenbank.")
+        logging.info(f"Suche nach Namen {name} in der Datenbank.")
 
         matches = process.extractOne(name, self.get_names(), score_cutoff=75, scorer=fuzz.token_sort_ratio)
         if matches:
-            self.logging.info(matches)
+            logging.info(matches)
             return matches[0]
         else:
-            self.logging.info(f"Name {name} konnte nicht in der Datenbank gefunden werden.")
+            logging.info(f"Name {name} konnte nicht in der Datenbank gefunden werden.")
             raise PlayerNotFoundException(name)
 
     def add_player(
@@ -47,18 +61,18 @@ class RatingSystem:
     ):
         existing_player = self.session.query(Player).filter_by(phone_number=phone_number).first()
         if existing_player:
-            self.logging.info(f"Spieler {existing_player.name} bereits in der Datenbank vorhanden.")
+            logging.info(f"Spieler {existing_player.name} bereits in der Datenbank vorhanden.")
             raise PlayerAlreadyExistsException(existing_player.name)
 
         new_player = Player(name=name, phone_number=phone_number)
 
         self.session.add(new_player)
         self.session.commit()
-        self.logging.info(f"Neuer Spieler {name} wurde zur Datenbank hinzugefügt.")
+        logging.info(f"Neuer Spieler {name} wurde zur Datenbank hinzugefügt.")
 
     def delete_player(self, phone_number: str, name: str = None):
         if phone_number == environ["ADMIN_PHONE_NUMBER"] and name:
-            self.logging.info(f"Admin löscht Spieler {name}.")
+            logging.info(f"Admin löscht Spieler {name}.")
             player = self.session.query(Player).filter_by(name=name).first()
 
             if not player:
@@ -66,19 +80,19 @@ class RatingSystem:
 
             self.session.delete(player)
             self.session.commit()
-            self.logging.info(f"Spielereintrag für {player.name} aus der Datenbank gelöscht.")
+            logging.info(f"Spielereintrag für {player.name} aus der Datenbank gelöscht.")
             return
 
         try:
-            self.logging.info(f"Suche {phone_number} in der Datenbank.")
+            logging.info(f"Suche {phone_number} in der Datenbank.")
             player = self.session.query(Player).filter_by(phone_number=phone_number).one()
-            self.logging.info(f"Spieler {player.name} in der Datenbank gefunden.")
+            logging.info(f"Spieler {player.name} in der Datenbank gefunden.")
 
             name = player.name
 
             self.session.delete(player)
             self.session.commit()
-            self.logging.info(f"Spielereintrag für {player.name} aus der Datenbank gelöscht.")
+            logging.info(f"Spielereintrag für {player.name} aus der Datenbank gelöscht.")
             return name
         except NoResultFound:
             raise PlayerNotFoundException(f"mit Handynummer: {phone_number}")
@@ -92,7 +106,7 @@ class RatingSystem:
         existing_rating = self.session.query(Rating).filter_by(player=player.id).first()
 
         if existing_rating:
-            self.logging.info(f"Spieler {player.name} bereits im Rating.")
+            logging.info(f"Spieler {player.name} bereits im Rating.")
             raise PlayerAlreadyInRatingException(player.name)
 
         new_rating = Rating(
@@ -105,7 +119,7 @@ class RatingSystem:
 
         self.session.add(new_rating)
         self.session.commit()
-        self.logging.info(f"Spieler {player.name} zum Rating hinzugefügt.")
+        logging.info(f"Spieler {player.name} zum Rating hinzugefügt.")
 
     def delete_player_from_rating(self, phone_number: str):
         player = self.session.query(Player).filter_by(phone_number=phone_number).first()
@@ -116,12 +130,12 @@ class RatingSystem:
         existing_rating = self.session.query(Rating).filter_by(player=player.id).first()
 
         if not existing_rating:
-            self.logging.info(f"Spieler {player.name} nicht im Rating.")
+            logging.info(f"Spieler {player.name} nicht im Rating.")
             raise PlayerNotInRatingException(player.name)
 
         self.session.query(Rating).filter_by(player=player.id).delete()
         self.session.commit()
-        self.logging.info(f"Spieler {player.name} aus dem Rating gelöscht.")
+        logging.info(f"Spieler {player.name} aus dem Rating gelöscht.")
 
     def add_games(self, playerA, playerB, scores, game_type, phone_number) -> list[tuple[str, float]]:
         changes = []
@@ -145,7 +159,7 @@ class RatingSystem:
             raise PlayerNotFoundException(playerB_name)
 
         if phone_number == environ["ADMIN_PHONE_NUMBER"]:
-            self.logging.info(f"Admin {phone_number} fügt Spiel hinzu.")
+            logging.info(f"Admin {phone_number} fügt Spiel hinzu.")
         else:
             # Check if the player adding the game is one of the players
             if playerA.phone_number != phone_number and playerB.phone_number != phone_number:
@@ -167,10 +181,11 @@ class RatingSystem:
             scoreB=scoreB,
             race_to=max(scoreA, scoreB),
             disciplin=game_type,
+            session=self.session,
         )
         self.session.add(new_game)
         self.session.commit()
-        self.logging.info(
+        logging.info(
             f"Neues Spiel hinzugefügt (ID: {new_game.id}) zwischen {playerA_name} und {playerB_name}\nRating change {new_game.rating_change}."
         )
 
@@ -189,7 +204,7 @@ class RatingSystem:
             raise GameTooOldException(game_id)
 
         if phone_number == environ["ADMIN_PHONE_NUMBER"]:
-            self.logging.info(f"Admin {phone_number} löscht Spiel.")
+            logging.info(f"Admin {phone_number} löscht Spiel.")
         else:
             if (not playerA or playerA.phone_number != phone_number) and (not playerB or playerB.phone_number != phone_number):
                 raise PlayerNotInGameException()
@@ -225,7 +240,7 @@ class RatingSystem:
         self.session.query(Game).filter_by(id=game_id).delete()
         # Ratings should be updated in the after_delete_game event
         self.session.commit()
-        self.logging.info(f"Spiel mit ID {game_id} gelöscht.")
+        logging.info(f"Spiel mit ID {game_id} gelöscht.")
 
     def rating_image(self):
         """Creates a table with the current ratings and exports it as an image.
@@ -265,9 +280,9 @@ class RatingSystem:
         storage = self.supabase.storage
         try:
             storage.create_bucket("rating", options={"public": True})
-            self.logging.info("Ein neuer Bucket für das Rating-Tabellenbild wurde erstellt.")
+            logging.info("Ein neuer Bucket für das Rating-Tabellenbild wurde erstellt.")
         except:
-            self.logging.info("Bucket für das Rating-Tabellenbild bereits vorhanden.")
+            logging.info("Bucket für das Rating-Tabellenbild bereits vorhanden.")
 
         ratingBucket = storage.from_("rating")
 
@@ -276,7 +291,7 @@ class RatingSystem:
             ratingBucket.upload(path="./rating.png", file=f, file_options={"content-type": "image/png"})
 
             res = ratingBucket.get_public_url("rating.png")
-            self.logging.info("Das Rating-Tabellenbild wurde exportiert.")
+            logging.info("Das Rating-Tabellenbild wurde exportiert.")
             return res
 
     def export_database(self):
@@ -285,14 +300,14 @@ class RatingSystem:
         try:
             storage.create_bucket("backup")
         except:
-            self.logging.info("Bucket für das Backup bereits vorhanden.")
+            logging.info("Bucket für das Backup bereits vorhanden.")
 
         backup_bucket = storage.from_("backup")
 
         # Delete backups older than 7 days
         files = backup_bucket.list()
         timestamp_format = "%Y-%m-%d %H:%M:%S"
-        self.logging.info(files)
+        logging.info(files)
 
         for file in files:
             file_name = file["name"]
@@ -302,7 +317,7 @@ class RatingSystem:
             timestamp = datetime.strptime(timestamp, timestamp_format)
             if (datetime.now() - timestamp).days > 7:
                 backup_bucket.remove(file["name"])
-                self.logging.info(f"Backup {file['name']} wurde gelöscht.")
+                logging.info(f"Backup {file['name']} wurde gelöscht.")
 
         # Fetch all ratings and games
         ratings = self.session.query(Rating).all()
@@ -344,7 +359,7 @@ class RatingSystem:
 
         with open("backup.zip", "rb") as f:
             backup_bucket.upload(path=f"backup_{timestamp}.zip", file=f, file_options={"content-type": "application/zip"})
-            self.logging.info("Die Datenbank wurde exportiert.")
+            logging.info("Die Datenbank wurde exportiert.")
 
             # Delete local files
             remove("ratings.csv")
@@ -372,7 +387,7 @@ class RatingSystem:
         player_rating.last_change = datetime.now()
 
         self.session.commit()
-        self.logging.info(f"Rating von {name} wurde angepasst auf {rating}.")
+        logging.info(f"Rating von {name} wurde angepasst auf {rating}.")
 
     def apply_rating_decay(self):
         ratings = self.session.query(Rating).all()
@@ -383,7 +398,7 @@ class RatingSystem:
             if (datetime.now() - rating.last_change).days > 30:
                 rating.rating = rating.rating * 0.97
                 rating.last_change = datetime.now()
-                self.logging.info(f"Rating von {rating.player} wurde um 3% reduziert.")
+                logging.info(f"Rating von {rating.player} wurde um 3% reduziert.")
 
         self.session.commit()
-        self.logging.info("Rating Decay wurde angewendet.")
+        logging.info("Rating Decay wurde angewendet.")

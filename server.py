@@ -13,11 +13,11 @@ from sentry_sdk.integrations.logging import LoggingIntegration
 from sqlalchemy.exc import PendingRollbackError
 from waitress import serve
 
-from app import app, db
-from message_provider import MessageProvider
+from rating_system import RatingSystem
 from utils.constants import EINGABE_NICHT_ERKANNT, HELP_COMMAND
 from utils.enums import UserState
 from utils.exceptions import *
+from utils.message_provider import MessageProvider
 
 logging.basicConfig(
     level=logging.INFO,
@@ -41,11 +41,10 @@ sentry_sdk.init(
     integrations=[sentry_logging],
 )
 
+app = Flask(__name__)
 session = dict()
 
-from rating_system import RatingSystem
-
-ratingSystem = RatingSystem(db=db, logging=logging)
+ratingSystem = RatingSystem()
 
 
 @app.route("/")

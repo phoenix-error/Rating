@@ -2,7 +2,6 @@ pandas
 dataframe-image
 matplotlib
 flask
-Flask-SQLAlchemy
 sqlalchemy
 python-dotenv
 psycopg2-binary
