@@ -34,6 +34,14 @@ class GameNotFoundException(Exception):
         self.game_id = game_id
 
 
+class GameTooOldException(Exception):
+    """Exception raised for errors in the Rating System."""
+
+    def __init__(self, game_id: int):
+        super().__init__(f"Spiel {game_id} ist zu alt und kann nicht mehr bearbeitet werden.\nBitte wende dich an einen Admin.")
+        self.game_id = game_id
+
+
 class GameTypeNotSupportedException(Exception):
     """Exception raised for errors in the Rating System."""
 

@@ -1,15 +1,17 @@
 """Initialize Flask app."""
 
+import logging
+from datetime import datetime
+from math import floor
+from random import randint
+from uuid import uuid4
+
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.orm import DeclarativeBase
-from uuid import uuid4
-from datetime import datetime
-from random import randint
+
+from utils.constants import K_FACTOR, RATING_FACTOR
 from utils.enums import GameType
-import logging
-from utils.constants import RATING_FACTOR, K_FACTOR
-from math import floor
 from utils.exceptions import GameTypeNotSupportedException
 
 

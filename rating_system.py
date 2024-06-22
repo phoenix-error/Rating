@@ -1,17 +1,18 @@
-from utils.exceptions import *
+import zipfile
 from datetime import datetime
-import pandas as pd
-import dataframe_image as dfi
-from sqlalchemy import func
-from app import Player, Rating, Game
-from utils.constants import BASIS_POINTS
 from os import environ, remove
-from sqlalchemy.exc import NoResultFound
-from supabase import create_client, Client
+
+import dataframe_image as dfi
+import pandas as pd
 from dotenv import load_dotenv
 from fuzzywuzzy import fuzz, process
-import zipfile
-import logging
+from sqlalchemy import func
+from sqlalchemy.exc import NoResultFound
+from supabase import Client, create_client
+
+from app import Game, Player, Rating
+from utils.constants import BASIS_POINTS
+from utils.exceptions import *
 
 
 class RatingSystem:
@@ -182,6 +183,10 @@ class RatingSystem:
         game = self.session.query(Game).filter_by(id=game_id).first()
         playerA = self.session.query(Player).filter_by(id=game.playerA).first()
         playerB = self.session.query(Player).filter_by(id=game.playerB).first()
+
+        # Check if game is too old over 1 hours
+        if (datetime.now() - game.created_at).minutes > 60:
+            raise GameTooOldException(game_id)
 
         if phone_number == environ["ADMIN_PHONE_NUMBER"]:
             self.logging.info(f"Admin {phone_number} löscht Spiel.")

@@ -1,4 +1,5 @@
 from os import environ, urandom
+
 from dotenv import load_dotenv
 
 load_dotenv()

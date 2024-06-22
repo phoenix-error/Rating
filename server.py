@@ -1,22 +1,23 @@
 import logging
-from flask import Flask, request
 import re
-from waitress import serve
-from utils.exceptions import *
 from os import environ
-from message_provider import MessageProvider
-from utils.constants import EINGABE_NICHT_ERKANNT, HELP_COMMAND
-from dotenv import load_dotenv
-from utils.enums import UserState
-from sqlalchemy.exc import PendingRollbackError
+
 import sentry_sdk
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.cron import CronTrigger
+from dotenv import load_dotenv
+from flask import Flask, request
+from pytz import timezone
 from sentry_sdk import capture_exception, set_user
 from sentry_sdk.integrations.logging import LoggingIntegration
-from app import app, db
-from apscheduler.schedulers.background import BackgroundScheduler
-from pytz import timezone
-from apscheduler.triggers.cron import CronTrigger
+from sqlalchemy.exc import PendingRollbackError
+from waitress import serve
 
+from app import app, db
+from message_provider import MessageProvider
+from utils.constants import EINGABE_NICHT_ERKANNT, HELP_COMMAND
+from utils.enums import UserState
+from utils.exceptions import *
 
 logging.basicConfig(
     level=logging.INFO,
@@ -299,6 +300,9 @@ def handle_delete_game(
         ratingSystem.delete_game(id, phone_number)
         MessageProvider.send_message(phone_number_id, phone_number, f"Spiel {id} erfolgreich gelöscht.")
     except GameNotFoundException as e:
+        capture_exception(e)
+        MessageProvider.send_message(phone_number_id, phone_number, f"Fehler: {e}")
+    except GameTooOldException as e:
         capture_exception(e)
         MessageProvider.send_message(phone_number_id, phone_number, f"Fehler: {e}")
     except PlayerNotInGameException as e:
