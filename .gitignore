@@ -4,3 +4,4 @@ logs/
 __pycache__/
 flask_session/
 rating.png
+**/__pycache__/

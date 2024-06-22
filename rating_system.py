@@ -254,9 +254,11 @@ class RatingSystem:
             playerA = session.query(Player).filter_by(id=game.playerA).first()
             playerB = session.query(Player).filter_by(id=game.playerB).first()
 
+            """
             # Check if game is too old over 1 hours
             if (datetime.now() - game.created_at).minutes > 60:
                 raise GameTooOldException(game_id)
+            """
 
             if phone_number == environ["ADMIN_PHONE_NUMBER"]:
                 logging.info(f"Admin {phone_number} löscht Spiel.")
