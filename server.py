@@ -50,6 +50,16 @@ def test():
     return "<pre>Nothing to see here. Checkout README.md to start.</pre>"
 
 
+@app.route("/rating")
+def rating():
+    try:
+        url = ratingSystem.rating_image()
+        return url
+    except Exception as e:
+        capture_exception(e)
+        return f"Rating konnte nicht aktualisiert werden. Wende dich an den Admin."
+
+
 @app.get("/whatsapp")
 def verify_webhook():
     mode = request.args.get("hub.mode")

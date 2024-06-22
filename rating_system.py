@@ -3,7 +3,7 @@ from datetime import datetime
 import pandas as pd
 import dataframe_image as dfi
 from sqlalchemy import func
-from models import Player, Rating, Game
+from app import Player, Rating, Game
 from utils.constants import BASIS_POINTS
 from os import environ, remove
 from sqlalchemy.exc import NoResultFound
@@ -11,6 +11,7 @@ from supabase import create_client, Client
 from dotenv import load_dotenv
 from fuzzywuzzy import fuzz, process
 import zipfile
+import logging
 
 
 class RatingSystem:
@@ -224,22 +225,19 @@ class RatingSystem:
             https://towardsdatascience.com/make-your-tables-look-glorious-2a5ddbfcc0e5
         """
 
-        # Query
-        result = (
-            self.session.query(
-                func.row_number().over(order_by=Rating.rating.desc()).label("Platz"),
-                Rating.rating.label("Rating"),
-                Rating.winning_quote.label("Gewinnquote (%)"),
-                Rating.games_won.label("Spiele (G)"),
-                Rating.games_lost.label("Spiele (V)"),
-                Rating.last_change.label("Letze Änderung"),
-            )
-            .join(Rating, Player.id == Rating.player)
-            .order_by(Rating.rating.desc())
-            .all()
+        query = self.session.query(
+            func.row_number().over(order_by=Rating.rating.desc()).label("Platz"),
+            Player.name.label("Name"),
+            Rating.rating.label("Rating"),
+            Rating.winning_quote.label("Gewinnquote (%)"),
+            Rating.games_won.label("Spiele (G)"),
+            Rating.games_lost.label("Spiele (V)"),
+            Rating.last_change.label("Letze Änderung"),
         )
 
-        self.logging.info(result)
+        result = query.join(Player, Player.id == Rating.player).all()
+
+        logging.error(result)
 
         # Dataframe, styling and export
         data = pd.DataFrame(result)
