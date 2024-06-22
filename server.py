@@ -14,7 +14,6 @@ from sqlalchemy.exc import PendingRollbackError
 from waitress import serve
 
 from rating_system import RatingSystem
-from utils.constants import EINGABE_NICHT_ERKANNT, HELP_COMMAND
 from utils.enums import UserState
 from utils.exceptions import *
 from utils.message_provider import MessageProvider
@@ -45,6 +44,9 @@ app = Flask(__name__)
 session = dict()
 
 ratingSystem = RatingSystem()
+
+EINGABE_NICHT_ERKANNT = "Eingabe nicht erkannt.\nBenutze den Befehl 'Start' um zu beginnen. oder 'Hilfe' für Hilfe."
+HELP_COMMAND = "Es sind folgende Befehle verfügbar:\nStart\nSpieler hinzufügen\nSpieler löschen\nSpiel hinzufügen\nSpiel löschen\nRating anschauen\nHilfe"
 
 
 @app.route("/")

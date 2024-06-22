@@ -13,9 +13,10 @@ from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm import sessionmaker
 from supabase import Client, create_client
 
-from utils.constants import BASIS_POINTS
+from models import Base, Game, Player, Rating
 from utils.exceptions import *
-from utils.models import Base, Game, Player, Rating
+
+BASIS_POINTS = 50
 
 
 class RatingSystem:

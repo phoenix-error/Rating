@@ -4,12 +4,15 @@ from math import floor
 from random import randint
 from uuid import uuid4
 
-from constants import K_FACTOR, RATING_FACTOR
-from enums import GameType
-from exceptions import GameTypeNotSupportedException
 from sqlalchemy import UUID, Column, Date, Float, ForeignKey, Integer, String
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
+
+from utils.enums import GameType
+from utils.exceptions import GameTypeNotSupportedException
+
+RATING_FACTOR = 120
+K_FACTOR = 1.2
 
 Base = declarative_base()
 
