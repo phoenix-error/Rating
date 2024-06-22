@@ -284,6 +284,9 @@ def handle_add_game(message, phone_number_id, phone_number):
     except PendingRollbackError as e:
         capture_exception(e)
         MessageProvider.send_message(phone_number_id, phone_number, f"Fehler: {e}")
+    except Exception as e:
+        capture_exception(e)
+        MessageProvider.send_message(phone_number_id, phone_number, f"Fehler. Versuche es später erneut.")
 
 
 def handle_delete_game(
