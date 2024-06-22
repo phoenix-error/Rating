@@ -56,7 +56,7 @@ def test():
 def rating():
     try:
         url = ratingSystem.rating_image()
-        return f'<img src="{url}" alt="Rating" style="width:100%;">'
+        return f'<img src="{url}" style="display: block; margin-left: auto; margin-right: auto; height: 100%;" />'
     except Exception as e:
         capture_exception(e)
         return f"Rating konnte nicht aktualisiert werden. Wende dich an den Admin."
@@ -341,6 +341,7 @@ def handle_admin_message(message: str, phone_number_id: str, phone_number: str):
 
 
 def handle_delete_player(name: str, phone_number_id: str, phone_number: str):
+    MessageProvider.send_message(phone_number_id, phone_number, "Deleting in progress.")
     session.pop(phone_number, None)
     try:
         ratingSystem.delete_player(phone_number, name=name)

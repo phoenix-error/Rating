@@ -69,6 +69,64 @@ class MessageProvider:
         response.raise_for_status()
 
     @staticmethod
+    def send_admin_list(phone_number_id, phone_number):
+        payload = {
+            "messaging_product": "whatsapp",
+            "recipient_type": "individual",
+            "to": phone_number,
+            "type": "interactive",
+            "interactive": {
+                "type": "list",
+                "header": {"type": "text", "text": "Was möchtest du tun?"},
+                "body": {"text": "Wähle eine Option"},
+                "footer": {"text": ""},
+                "action": {
+                    "button": "Zeige Befehle",
+                    "sections": [
+                        {
+                            "title": "Backup",
+                            "rows": [
+                                {
+                                    "id": "backup",
+                                    "title": "Backup erstellen",
+                                    "description": "Erstellt ein Backup der Datenbank",
+                                },
+                            ],
+                        },
+                        {
+                            "title": "Rating",
+                            "rows": [
+                                {
+                                    "id": "adjust_rating",
+                                    "title": "Rating anpassen",
+                                    "description": "Passt das Rating eines Spielers an",
+                                },
+                            ],
+                        },
+                        {
+                            "title": "Spieler",
+                            "rows": [
+                                {
+                                    "id": "add_player",
+                                    "title": "Spieler hinzufügen",
+                                    "description": "Fügt einen Spieler zum System und Rating hinzu",
+                                },
+                                {
+                                    "id": "delete_player",
+                                    "title": "Spieler löschen",
+                                    "description": "Löscht einen Spieler aus dem Rating und dem System",
+                                },
+                            ],
+                        },
+                    ],
+                },
+            },
+        }
+
+        response = requests.post(MessageProvider.url_for(phone_number_id), json=payload, headers=MessageProvider.headers)
+        response.raise_for_status()
+
+    @staticmethod
     def send_game_flow_message(phone_number_id, phone_number):
         # TODO: Implement
         payload = {}

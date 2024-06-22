@@ -43,7 +43,7 @@ class RatingSystem:
         self,
         name: str,
         phone_number: str,
-    ) -> str:
+    ):
         existing_player = self.session.query(Player).filter_by(phone_number=phone_number).first()
         if existing_player:
             self.logging.info(f"Spieler {existing_player.name} bereits in der Datenbank vorhanden.")
