@@ -75,12 +75,14 @@ class Game(Base):
 
         calc_element = 1 / (1 + pow(10, ((playerB_rating - playerA_rating) / RATING_FACTOR)))
 
-        if self.disciplin == GameType.NORMAL.value:
+        logging.info("GameType: " + self.disciplin)
+
+        if self.disciplin.lower() == "normal":
             rating_change = K_FACTOR * (self.scoreA - calc_element * (self.scoreA + self.scoreB))
             logging.info(
                 f"Normales Spiel: Rating-Änderung beträgt {rating_change}.\nSpieler {playerA.name} hat {self.scoreA} Spiele gewonnen, Spieler {playerB.name} hat {self.scoreB} Spiele gewonnen."
             )
-        elif self.disciplin == GameType.STRAIGHT.value:
+        elif self.disciplin == "14.1":
             scoreFactor1 = (
                 self.scoreB / 10.0 if self.coreA > self.scoreB else floor(self.scoreA / self.scoreB * self.scoreA / 10.0)
             )
@@ -93,7 +95,7 @@ class Game(Base):
                 f"14.1 Spiel: Rating-Änderung beträgt {rating_change}.\nSpieler {playerA.name} hat {self.scoreA} Spiele gewonnen, Spieler {playerB.name} hat {self.scoreB} Spiele gewonnen.\nDie Score-Faktoren sind {scoreFactor1} und {scoreFactor2}."
             )
         else:
-            raise GameTypeNotSupportedException()
+            raise GameTypeNotSupportedException(self.disciplin)
 
         return rating_change
 
