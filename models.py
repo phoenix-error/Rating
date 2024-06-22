@@ -55,7 +55,7 @@ class Game(Base):
                 return game_id
 
     def __init__(self, playerA, playerB, scoreA, scoreB, race_to, disciplin, session):
-        self.id = Game.generate_unique_id()
+        self.id = Game.generate_unique_id(session)
         self.playerA = playerA
         self.playerB = playerB
         self.scoreA = scoreA
