@@ -14,3 +14,4 @@ sentry-sdk
 sentry-sdk[flask]
 sentry-sdk[sqlalchemy]
 apscheduler
+requests

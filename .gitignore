@@ -5,3 +5,4 @@ __pycache__/
 flask_session/
 rating.png
 **/__pycache__/
+.venv/

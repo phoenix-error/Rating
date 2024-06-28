@@ -42,6 +42,7 @@ class MessageProvider:
                         {
                             "title": "Spiel",
                             "rows": [
+                                {"id": "add_tournament", "title": "Turnier hinzufügen", "description": "Fügt ein Turnier hinzu"},
                                 {"id": "add_game", "title": "Spiel hinzufügen", "description": "Fügt ein Spiel hinzu"},
                                 {"id": "delete_game", "title": "Spiel löschen", "description": "Löscht ein Spiel"},
                             ],
