@@ -15,3 +15,5 @@ sentry-sdk[flask]
 sentry-sdk[sqlalchemy]
 apscheduler
 requests
+pytest
+pytest-env

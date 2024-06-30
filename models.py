@@ -64,7 +64,6 @@ class Game(Base):
         self.disciplin = disciplin.strip()
         self.created_at = datetime.now()
         self.rating_change = self.calculate_rating(session)
-        self.adjust_ratings(session)
 
     def calculate_rating(self, session) -> float:
         playerA_rating = session.query(Rating).filter_by(player=self.playerA).first().rating

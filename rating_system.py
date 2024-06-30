@@ -11,9 +11,9 @@ from sentry_sdk import capture_exception
 from sqlalchemy import create_engine, func
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm import sessionmaker
-from supabase import Client, create_client
 
 from models import Base, Game, Player, Rating
+from supabase import Client, create_client
 from utils.exceptions import *
 
 BASIS_POINTS = 50
@@ -32,6 +32,7 @@ class RatingSystem:
         host = environ["SUPABASE_HOST"]
         port = environ["SUPABASE_PORT"]
         dbname = environ["SUPABASE_NAME"]
+
         self.engine = create_engine(f"postgresql+psycopg2://{username}:{password}@{host}:{port}/{dbname}")
         Base.metadata.create_all(self.engine)
         self.Session = sessionmaker(bind=self.engine)
@@ -268,33 +269,12 @@ class RatingSystem:
                 ):
                     raise PlayerNotInGameException()
 
-            ratingA = session.query(Rating).filter_by(player=game.playerA).first()
-            ratingB = session.query(Rating).filter_by(player=game.playerB).first()
-
-            if not ratingA or not ratingB:
+            # Check if ratings exist
+            if (
+                not session.query(Rating).filter_by(player=game.playerA).first()
+                or not session.query(Rating).filter_by(player=game.playerB).first()
+            ):
                 raise PlayerNotInRatingException(playerA.name, playerB.name)
-
-            ratingA.games_won -= game.scoreA
-            ratingA.games_lost -= game.scoreB
-
-            ratingB.games_won -= game.scoreB
-            ratingB.games_lost -= game.scoreA
-
-            ratingA.rating -= game.rating_change
-            ratingB.rating += game.rating_change
-
-            if ratingA.games_won + ratingA.games_lost == 0:
-                ratingA.winning_quote = None
-            else:
-                ratingA.winning_quote = ratingA.games_won / (ratingA.games_won + ratingA.games_lost)
-
-            if ratingB.games_won + ratingB.games_lost == 0:
-                ratingB.winning_quote = None
-            else:
-                ratingB.winning_quote = ratingB.games_won / (ratingB.games_won + ratingB.games_lost)
-
-            ratingA.last_change = datetime.now()
-            ratingB.last_change = datetime.now()
 
             session.query(Game).filter_by(id=game_id).delete()
             # Ratings should be updated in the after_delete_game event
@@ -454,6 +434,27 @@ class RatingSystem:
         finally:
             session.close()
 
+    def get_rating(self, name):
+        session = self.Session()
+        try:
+            name = self.find_closest_name(name)
+            player = session.query(Player).filter_by(name=name).first()
+            if not player:
+                raise PlayerNotFoundException(name)
+
+            player_rating = session.query(Rating).filter_by(player=player.id).first()
+            if not player_rating:
+                raise PlayerNotInRatingException(name)
+
+            return player_rating.rating
+        except Exception as e:
+            session.rollback()
+            capture_exception(e)
+            logging.error(f"Transaction failed: {e}")
+            raise e
+        finally:
+            session.close()
+
     def adjust_rating(self, name, rating, games_won, games_lost, phone_number=None):
         session = self.Session()
         try:
@@ -472,8 +473,12 @@ class RatingSystem:
             player_rating.rating = rating
             player_rating.games_won = games_won
             player_rating.games_lost = games_lost
-            if games_won + games_lost != 0:
+
+            if games_won + games_lost == 0:
+                player_rating.winning_quote = None
+            else:
                 player_rating.winning_quote = games_won / (games_won + games_lost)
+
             player_rating.last_change = datetime.now()
 
             session.commit()
@@ -493,7 +498,7 @@ class RatingSystem:
 
             # Check if rating is older than 30 days
             for rating in ratings:
-                if (datetime.now() - rating.last_change).days > 30:
+                if (datetime.now().date() - rating.last_change).days > 30:
                     rating.rating = rating.rating * 0.97
                     rating.last_change = datetime.now()
                     logging.info(f"Rating von {rating.player} wurde um 3% reduziert.")

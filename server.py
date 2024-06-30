@@ -111,13 +111,11 @@ def whatsapp_message():
         username = "Unknown User"
 
     try:
-
         phone_number_id = value["metadata"]["phone_number_id"]
         message = value["messages"][0]
         phone_number = message["from"]
         set_user({"id": phone_number, "username": username})
         logging.info(f"Received message: {message} with phone number id: {phone_number_id}")
-
         logging.info(f"Inital Session: {session.get(phone_number)}")
 
         match message["type"]:
@@ -158,7 +156,13 @@ def handle_message(phone_number_id, phone_number, message: str, current_state: s
         case UserState.ADMIN_ADD_PLAYER.value:
             handle_add_player(message.splitlines[0].strip(), phone_number_id, message.splitlines[1].strip())
         case UserState.ADMIN_DELETE_PLAYER.value:
-            handle_admin_delete_player(message, phone_number_id, phone_number)
+            session.pop(phone_number, None)
+            try:
+                name = ratingSystem.delete_player(phone_number, name=message.strip())
+                MessageProvider.send_message(phone_number_id, phone_number, f"Spieler {name} erfolgreich gelöscht.")
+            except PlayerNotFoundException as e:
+                capture_exception(e)
+                MessageProvider.send_message(phone_number_id, phone_number, f"Fehler: {e}")
         case UserState.ADMIN_ADJUST_RATING.value:
             handle_adjust_rating(message, phone_number_id, phone_number)
         case UserState.INITIAL.value:
@@ -246,7 +250,7 @@ def handle_initial_state(message, phone_number_id, phone_number):
 def handle_add_tournament(message, phone_number_id, phone_number):
     session.pop(phone_number, None)
     try:
-        tournament_id = int(message)
+        tournament_id = int(message.strip())
 
         url = f"https://api.cuescore.com/tournament/?id={tournament_id}"
 
@@ -255,21 +259,22 @@ def handle_add_tournament(message, phone_number_id, phone_number):
 
         matches = data["matches"]
 
-        results = []
-
         for match in matches:
             if match["matchstatus"] != "finished":
                 continue
+            try:
+                playerA = match["playerA"]["name"]
+                playerB = match["playerB"]["name"]
+                scoreA = int(match["scoreA"])
+                scoreB = int(match["scoreB"])
 
-            playerA = match["playerA"]["name"]
-            playerB = match["playerB"]["name"]
-            scoreA = int(match["scoreA"])
-            scoreB = int(match["scoreB"])
-
-            (game_id, rating_change) = ratingSystem.add_game(playerA, playerB, scoreA, scoreB, "Normal", phone_number)
-            results.append(f"Spiel {game_id} hinzugefügt.\nRatingänderung: {rating_change:.2f}")
-        message = "\n".join(results)
-        MessageProvider.send_message(phone_number_id, phone_number, message)
+                (game_id, rating_change) = ratingSystem.add_game(playerA, playerB, scoreA, scoreB, "Normal", phone_number)
+                results.append()
+                MessageProvider.send_message(
+                    phone_number_id, phone_number, f"Spiel {game_id} hinzugefügt.\nRatingänderung: {rating_change:.2f}"
+                )
+            except Exception as e:
+                MessageProvider.send_message(phone_number_id, phone_number, f"Spiel konnte nicht hinzugefügt werden.\n{e}")
         MessageProvider.send_message(phone_number_id, phone_number, f"Turnier {tournament_id} erfolgreich hinzugefügt.")
     except PlayerAlreadyExistsException as e:
         MessageProvider.send_message(phone_number_id, phone_number, f"Fehler: {e}")
@@ -303,7 +308,7 @@ def handle_add_game(message, phone_number_id, phone_number):
         game_type = message.split("\n")[0]
         names = message.split("\n")[1]
         nameA, nameB = names.strip().split(":")
-        scores = [tuple(map(int, match)) for match in re.findall(r"\b(\d+)[ \t]*:[ \t]*(\d+)\b", message)]
+        scores = [tuple(map(int, match)) for match in re.findall(r"(\d+)[ \t]*:[ \t]*(\d+)", message)]
 
         logging.info(f"Identified matches: {game_type}, {names}, {scores}")
 
@@ -368,10 +373,7 @@ def handle_admin_message(message: str, phone_number_id: str, phone_number: str):
         MessageProvider.send_message(phone_number_id, phone_number, "Du hast keine Berechtigung, diese Aktion auszuführen.")
         return
 
-    first_line, *lines = message.splitlines()
-    first_line = first_line.lower()
-
-    match first_line:
+    match message:
         case "Backup erstellen":
             export_database(phone_number_id, phone_number)
         case "Rating anpassen":
@@ -389,16 +391,6 @@ def handle_admin_message(message: str, phone_number_id: str, phone_number: str):
             MessageProvider.send_message(phone_number_id, phone_number, "Bitte geben Sie den Namen des Spielers ein.")
         case _:
             MessageProvider.send_message(phone_number_id, phone_number, "Admin Command nicht erkannt.")
-
-
-def handle_admin_delete_player(name: str, phone_number_id: str, phone_number: str):
-    session.pop(phone_number, None)
-    try:
-        ratingSystem.delete_player(phone_number, name=name)
-        MessageProvider.send_message(phone_number_id, phone_number, f"Spieler {name} erfolgreich gelöscht.")
-    except PlayerNotFoundException as e:
-        capture_exception(e)
-        MessageProvider.send_message(phone_number_id, phone_number, f"Fehler: {e}")
 
 
 def handle_adjust_rating(message: str, phone_number_id: str, phone_number: str):
@@ -420,11 +412,12 @@ def handle_adjust_rating(message: str, phone_number_id: str, phone_number: str):
     except ValueError as e:
         capture_exception(e)
         MessageProvider.send_message(phone_number_id, phone_number, f"Fehler: {e}")
+    except Exception as e:
+        capture_exception(e)
+        MessageProvider.send_message(phone_number_id, phone_number, f"Fehler: {e}")
 
 
 # Scheduler Jobs
-
-
 def export_database(phone_number_id=None, phone_number=None):
     try:
         ratingSystem.export_database()
