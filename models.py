@@ -97,39 +97,3 @@ class Game(Base):
             raise GameTypeNotSupportedException(self.disciplin)
 
         return rating_change
-
-    def adjust_ratings(self, session):
-        try:
-            ratingA = session.query(Rating).filter_by(player=self.playerA).first()
-            ratingB = session.query(Rating).filter_by(player=self.playerB).first()
-
-            playerA = session.query(Player).filter_by(id=self.playerA).first()
-            playerB = session.query(Player).filter_by(id=self.playerB).first()
-
-            ratingA.games_won += self.scoreA
-            ratingA.games_lost += self.scoreB
-            ratingB.games_won += self.scoreB
-            ratingB.games_lost += self.scoreA
-
-            ratingA.rating += self.rating_change
-            ratingB.rating -= self.rating_change
-
-            if ratingA.games_won + ratingA.games_lost == 0:
-                ratingA.winning_quote = None
-            else:
-                ratingA.winning_quote = ratingA.games_won / (ratingA.games_won + ratingA.games_lost)
-
-            if ratingB.games_won + ratingB.games_lost == 0:
-                ratingB.winning_quote = None
-            else:
-                ratingB.winning_quote = ratingB.games_won / (ratingB.games_won + ratingB.games_lost)
-
-            ratingA.last_change = datetime.now()
-            ratingB.last_change = datetime.now()
-
-            logging.info(f"Rating für Spieler {playerA.name} und {playerB.name} aktualisiert.")
-
-        except:
-            session.rollback()
-        else:
-            session.commit()
